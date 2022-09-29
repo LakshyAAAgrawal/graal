@@ -29,12 +29,14 @@ import static com.oracle.svm.core.util.VMError.shouldNotReachHere;
 import java.lang.reflect.Array;
 import java.lang.reflect.Modifier;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -314,6 +316,8 @@ public final class NativeImageHeap implements ImageHeap {
         final ObjectInfo existing = objects.get(uncompressed);
         if (existing == null) {
             addObjectToImageHeap(uncompressed, immutableFromParent, identityHashCode, reason);
+        } else {
+            existing.otherReasons.add(reason);
         }
     }
 
@@ -723,6 +727,9 @@ public final class NativeImageHeap implements ImageHeap {
          */
         final Object reason;
 
+        /* For debugging only. All the other reasons an object may have been inserted into an image heap */
+        final List<Object> otherReasons;
+
         ObjectInfo(Object object, long size, HostedClass clazz, int identityHashCode, Object reason) {
             this(SubstrateObjectConstant.forObject(object), size, clazz, identityHashCode, reason);
         }
@@ -735,6 +742,7 @@ public final class NativeImageHeap implements ImageHeap {
             this.size = size;
             this.identityHashCode = identityHashCode;
             this.reason = reason;
+            this.otherReasons = new ArrayList<>();
         }
 
         @Override
