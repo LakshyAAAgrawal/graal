@@ -9,6 +9,6 @@ public class NativeImageHeapGraphFeature implements InternalFeature {
     @Override
     public void afterHeapLayout(AfterHeapLayoutAccess a) {
         FeatureImpl.AfterHeapLayoutAccessImpl access = (FeatureImpl.AfterHeapLayoutAccessImpl)a;
-        NativeImageHeapGraph graph = new NativeImageHeapGraph(access.getHeap().getObjects());
+        NativeImageHeapGraph graph = new NativeImageHeapGraph(access.getHeap());
     }
 }
