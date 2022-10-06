@@ -2,102 +2,156 @@ package com.oracle.svm.hosted.image;
 
 import java.io.PrintStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.Comparator;
 import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Stack;
+import java.util.stream.Collectors;
 
+import com.oracle.svm.core.JavaMemoryUtil;
 import com.oracle.svm.hosted.image.NativeImageHeap.ObjectInfo;
+import com.oracle.svm.hosted.meta.HostedField;
+import com.oracle.svm.hosted.meta.HostedMethod;
 
-abstract class AbstractGraph<Node> {
-    protected final IdentityHashMap<Node, Set<Node>> adjList = new IdentityHashMap<>();
+/*
+    Directed graph of Objects in the NativeImageHeap.
+    Objects are enumerated as they are being added, starting from 0
+ */
+class DirectedGraph<Node> {
+    class NodeData {
+        public Set<Node> neighbours;
+        public int nodeId = 0;
+
+        public NodeData(int nodeId) {
+            this.neighbours = Collections.newSetFromMap(new IdentityHashMap<>());
+            this.nodeId = nodeId;
+        }
+    }
+
+    protected final IdentityHashMap<Node, NodeData> nodes = new IdentityHashMap<>();
+    protected final IdentityHashMap<Node, Set<Node>> parents = new IdentityHashMap<>();
     protected long numberOfEdges = 0;
-    public Set<Node> addNode(Node a) {
-        return adjList.computeIfAbsent(a, node -> Collections.newSetFromMap(new IdentityHashMap<>()));
+
+    public NodeData addNode(Node a) {
+        return nodes.computeIfAbsent(a, node -> new NodeData(nodes.size()));
     }
-    public void connect(Node a, Node b) {
-        Set<Node> adjNodes = addNode(a);
-        numberOfEdges += adjNodes.add(b) ? 1 : 0;
+
+    public int inDegree(Node node) {
+        Set<Node> parentNodes = parents.get(node);
+        return parentNodes == null ? 0 : parentNodes.size();
+    }
+
+    public int getNodeId(Node node) {
+        NodeData nodeData = nodes.get(node);
+        if (nodeData == null) {
+            return -1;
+        }
+        return nodeData.nodeId;
+    }
+
+    public boolean connect(Node a, Node b) {
+        if (a == null || b == null)
+            return false;
+        NodeData nodeData = addNode(a);
+        numberOfEdges += nodeData.neighbours.add(b) ? 1 : 0;
         addNode(b);
+        Set<Node> parentsOfNodeB = parents.computeIfAbsent(b, p -> Collections.newSetFromMap(new IdentityHashMap<>()));
+        parentsOfNodeB.add(a);
+        return true;
     }
+
     public Collection<Node> getNeighbours(Node a) {
-        return adjList.get(a);
+        return nodes.get(a).neighbours;
     }
-    public abstract Collection<Collection<Node>> computeConnectedComponents();
-    public long getNumberOfNodes() {
-        return adjList.size();
+
+    public int getNumberOfNodes() {
+        return nodes.size();
     }
+
     public long getNumberOfEdges() {
         return numberOfEdges;
     }
 
-    protected abstract void dumpGraphBegin(PrintStream out);
-    protected abstract void dumpEdge(PrintStream out, Node a, Node b);
-    protected abstract void dumpGraphEnd(PrintStream out);
+    public Collection<Node> dfs(Node node, boolean[] visited) {
+        ArrayList<Node> path = new ArrayList<>();
+        Stack<Node> stack = new Stack<>();
+        stack.add(node);
+        while (!stack.isEmpty()) {
+            Node currentNode = stack.pop();
+            int currentNodeId = getNodeId(currentNode);
+            if (visited[currentNodeId]) {
+                continue;
+            }
+            visited[currentNodeId] = true;
+            path.add(currentNode);
+            for (Node neighbour : getNeighbours(currentNode)) {
+                if (!visited[getNodeId(neighbour)]) {
+                    stack.push(neighbour);
+                }
+            }
+        }
+        return path;
+    }
+
+    public Collection<Collection<Node>> computeConnectedComponents() {
+        ArrayList<Collection<Node>> components = new ArrayList<>();
+        boolean[] visited = new boolean[nodes.size()];
+        List<Node> traversalOrder = nodes.keySet().stream()
+                        .sorted((a, b) -> getNeighbours(b).size() - getNeighbours(a).size())
+                        .collect(Collectors.toList());
+        for (Node node : traversalOrder) {
+            Arrays.fill(visited, false);
+            if (!visited[getNodeId(node)]) {
+                components.add(dfs(node, visited));
+            }
+        }
+        return components;
+    }
+
+    protected void dumpGraphBegin(PrintStream out) {
+        out.println("digraph G0 {");
+    }
+
+    protected void dumpEdge(PrintStream out, long nodeIdFrom, long nodeIdTo) {
+        out.printf("%d -> %d\n", nodeIdFrom, nodeIdTo);
+    }
+
+    protected void dumpGraphEnd(PrintStream out) {
+        out.println("}");
+    }
 
     public void dumpGraph(PrintStream out) {
         dumpGraphBegin(out);
         StringBuilder buffer = new StringBuilder();
-        for (Map.Entry<Node, Set<Node>> nodeSetEntry : adjList.entrySet()) {
+        for (Map.Entry<Node, NodeData> nodeSetEntry : nodes.entrySet()) {
             Node root = nodeSetEntry.getKey();
-            Set<Node> neighbours = nodeSetEntry.getValue();
-            for (Node neighbour : neighbours) {
-                dumpEdge(out, root, neighbour);
+            assert root != null;
+            NodeData nodeData = nodeSetEntry.getValue();
+            for (Node neighbour : nodeData.neighbours) {
+                dumpEdge(out, getNodeId(root), getNodeId(neighbour));
             }
         }
         dumpGraphEnd(out);
     }
 }
 
-class DirectedGraph<Node> extends AbstractGraph<Node> {
-    @Override
-    public Collection<Collection<Node>> computeConnectedComponents() {
-        return null;
-    }
-
-    @Override
-    protected void dumpGraphBegin(PrintStream out) {
-        out.println("digraph G0 {");
-    }
-
-    @Override
-    protected void dumpEdge(PrintStream out, Node a, Node b) {
-        out.printf("%s -> %s\n", a.toString(), b.toString());
-    }
-
-    @Override
-    protected void dumpGraphEnd(PrintStream out) {
-        out.println("}");
-    }
-}
-
-class UndirectedGraph<Node> extends AbstractGraph<Node> {
-    @Override
-    public Collection<Collection<Node>> computeConnectedComponents() {
-        return null;
-    }
-
-    @Override
-    protected void dumpGraphBegin(PrintStream out) {
-        out.println("graph G0 {");
-    }
-
-    @Override
-    protected void dumpEdge(PrintStream out, Node a, Node b) {
-        out.printf("%s -- %s\n", a.toString(), b.toString());
-    }
-
-    @Override
-    protected void dumpGraphEnd(PrintStream out) {
-        out.println("}");
-    }
-}
-
+/*
+ * Iterates through the NativeImageHeap objects and constructs a directed graph where each node in
+ * the graph represents an Object and each edge represents a reference between objects. If object A
+ * references an object B then in the graph there will be a node A that will have a neighbour node
+ * B.
+ * 
+ * 
+ */
 public class NativeImageHeapGraph {
-    private final AbstractGraph<Object> graph = new UndirectedGraph<>();
-    private final HashMap<String, Set<Object>> methodToConstant = new HashMap<>();
+    private final DirectedGraph<Object> graph = new DirectedGraph<>();
+    private final IdentityHashMap<HostedMethod, Set<Object>> parentMethods = new IdentityHashMap<>();
+    private final NativeImageHeap heap;
 
     private static ArrayList<ObjectInfo> getAllReferencesToObjectInHeap(ObjectInfo objectInfo) {
         ArrayList<ObjectInfo> referencesInfo = new ArrayList<>();
@@ -112,32 +166,35 @@ public class NativeImageHeapGraph {
         return referencesInfo;
     }
 
-    public NativeImageHeapGraph(NativeImageHeap heap) {
-//        ArrayList<Pair<String, Object>> allReasons = new ArrayList<>();
-        graph.connect("A", "B");
-        graph.connect("B", "C");
-        graph.connect("B", "D");
-        graph.connect("C", "D");
-        graph.connect("D", "A");
-        graph.dumpGraph(System.out);
-        for (ObjectInfo objectInfo : heap.getObjects()) {
-            Object object = objectInfo.getObject();
-            assert object != null;
-            ArrayList<ObjectInfo> referencesForObject = getAllReferencesToObjectInHeap(objectInfo);
-            referencesForObject.forEach(ref -> graph.connect(ref.getObject(), object));
+    private void computeRootAccesses() {
 
-//            if (objectInfo.reason instanceof String) { // root method name
-//                graph.addNode(object);
-//            } else if (objectInfo.reason instanceof ObjectInfo) {
-//                ArrayList<ObjectInfo> referencesForObject = getAllReferencesToObjectInHeap(objectInfo);
-//                referencesForObject.forEach(ref -> graph.connect(ref.getObject(), object));
-//            } else if (objectInfo.reason instanceof HostedField) {
-//                ArrayList<ObjectInfo> referencesForObject = getAllReferencesToObjectInHeap(objectInfo);
-//            } else {
-//                throw VMError.shouldNotReachHere("Unhandled reason of instance: " + objectInfo.reason.getClass().toString());
-//            }
-        }
-        //allReasons.stream().sorted(Comparator.comparing(Pair::getLeft)).forEach((kv) -> System.out.printf("%s -> %s\n", kv.getLeft(), kv.getRight().getClass().toString()));
     }
 
+    private long computeComponentSize(Collection<Object> objects) {
+        long sum = 0;
+        for (Object object : objects) {
+            ObjectInfo objectInfo = heap.getObjectInfo(object);
+            sum += objectInfo.getSize();
+        }
+        return sum;
+    }
+
+    private void connectChildToParentObjects(ObjectInfo childObjectInfo) {
+        ArrayList<ObjectInfo> referencesForObject = getAllReferencesToObjectInHeap(childObjectInfo);
+        for (ObjectInfo parentObjectInfo : referencesForObject) {
+            Object child = childObjectInfo.getObject();
+            graph.connect(parentObjectInfo.getObject(), child);
+
+        }
+    }
+
+    public NativeImageHeapGraph(NativeImageHeap heap) {
+        this.heap = heap;
+        for (ObjectInfo objectInfo : heap.getObjects()) { // typeof objectInfo.reason String,
+                                                          // ObjectInfo, HostedField
+            connectChildToParentObjects(objectInfo);
+        }
+        System.out.println(graph.getNumberOfNodes());
+        System.out.println(graph.getNumberOfEdges());
+    }
 }
