@@ -11,9 +11,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.Stack;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import com.oracle.svm.core.JavaMemoryUtil;
+import com.oracle.graal.pointsto.flow.SourceTypeFlow;
+import com.oracle.graal.pointsto.meta.AnalysisField;
 import com.oracle.svm.hosted.image.NativeImageHeap.ObjectInfo;
 import com.oracle.svm.hosted.meta.HostedField;
 import com.oracle.svm.hosted.meta.HostedMethod;
@@ -46,6 +48,10 @@ class DirectedGraph<Node> {
         return parentNodes == null ? 0 : parentNodes.size();
     }
 
+    public boolean hasParent(Node n) {
+        return !parents.containsKey(n) || parents.get(n).isEmpty();
+    }
+
     public int getNodeId(Node node) {
         NodeData nodeData = nodes.get(node);
         if (nodeData == null) {
@@ -62,11 +68,13 @@ class DirectedGraph<Node> {
         addNode(b);
         Set<Node> parentsOfNodeB = parents.computeIfAbsent(b, p -> Collections.newSetFromMap(new IdentityHashMap<>()));
         parentsOfNodeB.add(a);
+        parents.computeIfAbsent(a, p -> Collections.newSetFromMap(new IdentityHashMap<>()));
         return true;
     }
 
     public Collection<Node> getNeighbours(Node a) {
-        return nodes.get(a).neighbours;
+        Set<Node> neighbours = nodes.get(a).neighbours;
+        return neighbours != null ? neighbours : Collections.emptySet();
     }
 
     public int getNumberOfNodes() {
@@ -77,7 +85,7 @@ class DirectedGraph<Node> {
         return numberOfEdges;
     }
 
-    public Collection<Node> dfs(Node node, boolean[] visited) {
+    public Collection<Node> dfs(Node node, boolean[] visited, Consumer<Node> onVisit) {
         ArrayList<Node> path = new ArrayList<>();
         Stack<Node> stack = new Stack<>();
         stack.add(node);
@@ -87,6 +95,7 @@ class DirectedGraph<Node> {
             if (visited[currentNodeId]) {
                 continue;
             }
+            onVisit.accept(currentNode);
             visited[currentNodeId] = true;
             path.add(currentNode);
             for (Node neighbour : getNeighbours(currentNode)) {
@@ -101,13 +110,11 @@ class DirectedGraph<Node> {
     public Collection<Collection<Node>> computeConnectedComponents() {
         ArrayList<Collection<Node>> components = new ArrayList<>();
         boolean[] visited = new boolean[nodes.size()];
-        List<Node> traversalOrder = nodes.keySet().stream()
-                        .sorted((a, b) -> getNeighbours(b).size() - getNeighbours(a).size())
-                        .collect(Collectors.toList());
+        List<Node> traversalOrder = nodes.keySet().stream().filter(n -> !hasParent(n)).collect(Collectors.toList());
         for (Node node : traversalOrder) {
             Arrays.fill(visited, false);
             if (!visited[getNodeId(node)]) {
-                components.add(dfs(node, visited));
+                components.add(dfs(node, visited, n -> {}));
             }
         }
         return components;
@@ -150,8 +157,10 @@ class DirectedGraph<Node> {
  */
 public class NativeImageHeapGraph {
     private final DirectedGraph<Object> graph = new DirectedGraph<>();
-    private final IdentityHashMap<HostedMethod, Set<Object>> parentMethods = new IdentityHashMap<>();
+    private IdentityHashMap<HostedMethod, Set<Object>> entryPointMethods = new IdentityHashMap<>();
+    private ArrayList<Long> connectedComponentsSizes = new ArrayList<>();
     private final NativeImageHeap heap;
+    private long totalHeapSize = 0;
 
     private static ArrayList<ObjectInfo> getAllReferencesToObjectInHeap(ObjectInfo objectInfo) {
         ArrayList<ObjectInfo> referencesInfo = new ArrayList<>();
@@ -166,8 +175,20 @@ public class NativeImageHeapGraph {
         return referencesInfo;
     }
 
-    private void computeRootAccesses() {
+    private static IdentityHashMap<HostedMethod, Set<Object>> computeHeapEntryPointMethods(NativeImageHeap heap) {
+        IdentityHashMap<HostedMethod, Set<Object>> result = new IdentityHashMap<>();
+        Collection<HostedField> hostedFields = heap.getObjects().stream().filter(o -> o.reason instanceof HostedField).map(o -> (HostedField)o.reason).collect(Collectors.toList());
+        for (HostedField hostedField : hostedFields) {
+            try {
+                AnalysisField wrapped = hostedField.getWrapped();
+                if (wrapped != null) {
 
+                }
+            } catch (NullPointerException ignored) {
+
+            }
+        }
+        return result;
     }
 
     private long computeComponentSize(Collection<Object> objects) {
@@ -184,17 +205,29 @@ public class NativeImageHeapGraph {
         for (ObjectInfo parentObjectInfo : referencesForObject) {
             Object child = childObjectInfo.getObject();
             graph.connect(parentObjectInfo.getObject(), child);
-
         }
     }
 
     public NativeImageHeapGraph(NativeImageHeap heap) {
         this.heap = heap;
+        this.totalHeapSize = this.heap.getObjects().stream().map(ObjectInfo::getSize).reduce(Long::sum).get();
+        System.out.printf("Total Heap Size: %d\n", this.totalHeapSize);
+        System.out.printf("Total number of objects in the heap: %d", this.heap.getObjects().size());
+        System.out.println("NativeImageHeapGraph.NativeImageHeapGraph([heap]):205");
         for (ObjectInfo objectInfo : heap.getObjects()) { // typeof objectInfo.reason String,
                                                           // ObjectInfo, HostedField
             connectChildToParentObjects(objectInfo);
         }
+        System.out.println("NativeImageHeapGraph.NativeImageHeapGraph([heap]):210");
+        //this.entryPointMethods = computeHeapEntryPointMethods(heap);
+        List<Long> componentsSizes = graph.computeConnectedComponents().stream().map(this::computeComponentSize).sorted(Comparator.reverseOrder()).collect(Collectors.toList());
+        System.out.println("NativeImageHeapGraph.NativeImageHeapGraph([heap]):222");
+        List<Double> componentsSizesFraction = componentsSizes.stream().map(o -> o.doubleValue() / this.totalHeapSize).collect(Collectors.toList());
+        componentsSizesFraction.stream().limit(32).forEach(System.out::println);
+        System.out.println("NativeImageHeapGraph.NativeImageHeapGraph([heap]):211");
         System.out.println(graph.getNumberOfNodes());
         System.out.println(graph.getNumberOfEdges());
+
+        System.out.println("NativeImageHeapGraph.NativeImageHeapGraph([heap]):215:end");
     }
 }
