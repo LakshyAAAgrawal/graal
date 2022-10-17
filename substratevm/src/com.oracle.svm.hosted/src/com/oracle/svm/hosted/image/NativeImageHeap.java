@@ -745,6 +745,14 @@ public final class NativeImageHeap implements ImageHeap {
             this.otherReasons = new ArrayList<>();
         }
 
+        public Object getReason() {
+            return reason;
+        }
+
+        public List<Object> getOtherReasons() {
+            return otherReasons;
+        }
+
         @Override
         public Object getObject() {
             return SubstrateObjectConstant.asObject(constant);

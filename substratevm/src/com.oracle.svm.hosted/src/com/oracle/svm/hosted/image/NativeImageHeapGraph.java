@@ -19,6 +19,8 @@ import com.oracle.graal.pointsto.meta.AnalysisField;
 import com.oracle.svm.hosted.image.NativeImageHeap.ObjectInfo;
 import com.oracle.svm.hosted.meta.HostedField;
 import com.oracle.svm.hosted.meta.HostedMethod;
+import jdk.vm.ci.meta.JavaMethod;
+import org.graalvm.compiler.core.phases.NativeImageHeapGraphAccessPhase;
 
 /*
     Directed graph of Objects in the NativeImageHeap.
@@ -157,10 +159,22 @@ class DirectedGraph<Node> {
  */
 public class NativeImageHeapGraph {
     private final DirectedGraph<Object> graph = new DirectedGraph<>();
-    private IdentityHashMap<HostedMethod, Set<Object>> entryPointMethods = new IdentityHashMap<>();
-    private ArrayList<Long> connectedComponentsSizes = new ArrayList<>();
-    private final NativeImageHeap heap;
+    private final NativeImageHeapGraphAccessPhase.NativeImageHeapAccessRecords accessRecords;
+    private IdentityHashMap<String, Set<Object>> entryPoints = new IdentityHashMap<>();
+    private NativeImageHeap heap;
     private long totalHeapSize = 0;
+
+    private IdentityHashMap<JavaMethod, Set<Object>> objectAccesses = new IdentityHashMap<>();
+
+    public NativeImageHeapGraph(NativeImageHeapGraphAccessPhase.NativeImageHeapAccessRecords accessRecords, NativeImageHeap heap) {
+        this.heap = heap;
+        this.accessRecords = accessRecords;
+        create();
+    }
+
+    public void recordAccess(JavaMethod method, Object heapObject) {
+        objectAccesses.computeIfAbsent(method, m -> Collections.newSetFromMap(new IdentityHashMap<>())).add(heapObject);
+    }
 
     private static ArrayList<ObjectInfo> getAllReferencesToObjectInHeap(ObjectInfo objectInfo) {
         ArrayList<ObjectInfo> referencesInfo = new ArrayList<>();
@@ -173,22 +187,6 @@ public class NativeImageHeapGraph {
             }
         }
         return referencesInfo;
-    }
-
-    private static IdentityHashMap<HostedMethod, Set<Object>> computeHeapEntryPointMethods(NativeImageHeap heap) {
-        IdentityHashMap<HostedMethod, Set<Object>> result = new IdentityHashMap<>();
-        Collection<HostedField> hostedFields = heap.getObjects().stream().filter(o -> o.reason instanceof HostedField).map(o -> (HostedField)o.reason).collect(Collectors.toList());
-        for (HostedField hostedField : hostedFields) {
-            try {
-                AnalysisField wrapped = hostedField.getWrapped();
-                if (wrapped != null) {
-
-                }
-            } catch (NullPointerException ignored) {
-
-            }
-        }
-        return result;
     }
 
     private long computeComponentSize(Collection<Object> objects) {
@@ -205,14 +203,17 @@ public class NativeImageHeapGraph {
         for (ObjectInfo parentObjectInfo : referencesForObject) {
             Object child = childObjectInfo.getObject();
             graph.connect(parentObjectInfo.getObject(), child);
+            if (childObjectInfo.reason instanceof String) {
+                entryPoints.computeIfAbsent((String) childObjectInfo.reason,
+                        c -> Collections.newSetFromMap(new IdentityHashMap<>())).add(child);
+            }
         }
     }
 
-    public NativeImageHeapGraph(NativeImageHeap heap) {
-        this.heap = heap;
+    private void create() {
         this.totalHeapSize = this.heap.getObjects().stream().map(ObjectInfo::getSize).reduce(Long::sum).get();
         System.out.printf("Total Heap Size: %d\n", this.totalHeapSize);
-        System.out.printf("Total number of objects in the heap: %d", this.heap.getObjects().size());
+        System.out.printf("Total number of objects in the heap: %d\n", this.heap.getObjects().size());
         System.out.println("NativeImageHeapGraph.NativeImageHeapGraph([heap]):205");
         for (ObjectInfo objectInfo : heap.getObjects()) { // typeof objectInfo.reason String,
                                                           // ObjectInfo, HostedField
@@ -227,7 +228,7 @@ public class NativeImageHeapGraph {
         System.out.println("NativeImageHeapGraph.NativeImageHeapGraph([heap]):211");
         System.out.println(graph.getNumberOfNodes());
         System.out.println(graph.getNumberOfEdges());
-
+        entryPoints.forEach((k,v) -> System.out.printf("%s -> %d\n", k, v.size()));
         System.out.println("NativeImageHeapGraph.NativeImageHeapGraph([heap]):215:end");
     }
 }
