@@ -77,7 +77,7 @@ public class HeapHistogram {
         entry.size += size;
 
         if (PrintStrings && objectInfo.getObject() instanceof String) {
-            String reason = String.valueOf(objectInfo.reason);
+            String reason = String.valueOf(objectInfo.getMainReason());
             String value = ((String) objectInfo.getObject()).replace("\n", "");
             if (!reason.startsWith("com.oracle.svm.core.hub.DynamicHub")) {
                 System.out.format("%120s ::: %s\n", value, reason);

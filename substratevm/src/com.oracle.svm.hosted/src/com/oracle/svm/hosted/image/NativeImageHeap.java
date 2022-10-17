@@ -317,7 +317,7 @@ public final class NativeImageHeap implements ImageHeap {
         if (existing == null) {
             addObjectToImageHeap(uncompressed, immutableFromParent, identityHashCode, reason);
         } else {
-            existing.otherReasons.add(reason);
+            existing.addReason(reason);
         }
     }
 
@@ -583,7 +583,7 @@ public final class NativeImageHeap implements ImageHeap {
         if (reason instanceof ObjectInfo) {
             ObjectInfo info = (ObjectInfo) reason;
             msg.append("    object: ").append(info.getObject()).append("  of class: ").append(info.getObject().getClass().getTypeName()).append(System.lineSeparator());
-            return fillReasonStack(msg, info.reason);
+            return fillReasonStack(msg, info.getMainReason());
         }
         return msg.append("    root: ").append(reason).append(System.lineSeparator());
     }
@@ -725,10 +725,7 @@ public final class NativeImageHeap implements ImageHeap {
          * a root object which refers to this object, or is a String explaining why this object is
          * in the heap. The reason field is like a "comes from" pointer.
          */
-        final Object reason;
-
-        /* For debugging only. All the other reasons an object may have been inserted into an image heap */
-        final List<Object> otherReasons;
+        private final List<Object> reasons;
 
         ObjectInfo(Object object, long size, HostedClass clazz, int identityHashCode, Object reason) {
             this(SubstrateObjectConstant.forObject(object), size, clazz, identityHashCode, reason);
@@ -741,16 +738,19 @@ public final class NativeImageHeap implements ImageHeap {
             this.offsetInPartition = -1L;
             this.size = size;
             this.identityHashCode = identityHashCode;
-            this.reason = reason;
-            this.otherReasons = new ArrayList<>();
+            this.reasons = new ArrayList<>(List.of(reason));
         }
 
-        public Object getReason() {
-            return reason;
+        public void addReason(Object reason) {
+            this.reasons.add(reason);
         }
 
-        public List<Object> getOtherReasons() {
-            return otherReasons;
+        public Object getMainReason() {
+            return this.reasons.get(0);
+        }
+
+        public List<Object> getReasons() {
+            return reasons;
         }
 
         @Override
@@ -839,13 +839,13 @@ public final class NativeImageHeap implements ImageHeap {
         @Override
         public String toString() {
             StringBuilder result = new StringBuilder(getObject().getClass().getName()).append(" -> ");
-            Object cur = reason;
+            Object cur = getMainReason();
             Object prev = null;
             boolean skipped = false;
             while (cur instanceof ObjectInfo) {
                 skipped = prev != null;
                 prev = cur;
-                cur = ((ObjectInfo) cur).reason;
+                cur = ((ObjectInfo) cur).getMainReason();
             }
             if (skipped) {
                 result.append("... -> ");

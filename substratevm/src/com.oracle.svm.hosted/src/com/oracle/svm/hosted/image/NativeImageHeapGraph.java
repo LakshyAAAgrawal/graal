@@ -14,11 +14,7 @@ import java.util.Stack;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import com.oracle.graal.pointsto.flow.SourceTypeFlow;
-import com.oracle.graal.pointsto.meta.AnalysisField;
 import com.oracle.svm.hosted.image.NativeImageHeap.ObjectInfo;
-import com.oracle.svm.hosted.meta.HostedField;
-import com.oracle.svm.hosted.meta.HostedMethod;
 import jdk.vm.ci.meta.JavaMethod;
 import org.graalvm.compiler.core.phases.NativeImageHeapGraphAccessPhase;
 
@@ -38,20 +34,11 @@ class DirectedGraph<Node> {
     }
 
     protected final IdentityHashMap<Node, NodeData> nodes = new IdentityHashMap<>();
-    protected final IdentityHashMap<Node, Set<Node>> parents = new IdentityHashMap<>();
+    protected final IdentityHashMap<Node, Boolean> parent = new IdentityHashMap<>();
     protected long numberOfEdges = 0;
 
     public NodeData addNode(Node a) {
         return nodes.computeIfAbsent(a, node -> new NodeData(nodes.size()));
-    }
-
-    public int inDegree(Node node) {
-        Set<Node> parentNodes = parents.get(node);
-        return parentNodes == null ? 0 : parentNodes.size();
-    }
-
-    public boolean hasParent(Node n) {
-        return !parents.containsKey(n) || parents.get(n).isEmpty();
     }
 
     public int getNodeId(Node node) {
@@ -68,9 +55,8 @@ class DirectedGraph<Node> {
         NodeData nodeData = addNode(a);
         numberOfEdges += nodeData.neighbours.add(b) ? 1 : 0;
         addNode(b);
-        Set<Node> parentsOfNodeB = parents.computeIfAbsent(b, p -> Collections.newSetFromMap(new IdentityHashMap<>()));
-        parentsOfNodeB.add(a);
-        parents.computeIfAbsent(a, p -> Collections.newSetFromMap(new IdentityHashMap<>()));
+        parent.putIfAbsent(a, true);
+        parent.put(b, false);
         return true;
     }
 
@@ -112,7 +98,7 @@ class DirectedGraph<Node> {
     public Collection<Collection<Node>> computeConnectedComponents() {
         ArrayList<Collection<Node>> components = new ArrayList<>();
         boolean[] visited = new boolean[nodes.size()];
-        List<Node> traversalOrder = nodes.keySet().stream().filter(n -> !hasParent(n)).collect(Collectors.toList());
+        List<Node> traversalOrder = parent.entrySet().stream().filter(Map.Entry::getValue).map(Map.Entry::getKey).collect(Collectors.toList());
         for (Node node : traversalOrder) {
             Arrays.fill(visited, false);
             if (!visited[getNodeId(node)]) {
@@ -160,7 +146,7 @@ class DirectedGraph<Node> {
 public class NativeImageHeapGraph {
     private final DirectedGraph<Object> graph = new DirectedGraph<>();
     private final NativeImageHeapGraphAccessPhase.NativeImageHeapAccessRecords accessRecords;
-    private IdentityHashMap<String, Set<Object>> entryPoints = new IdentityHashMap<>();
+    private IdentityHashMap<Object, Set<Object>> rootEntryPoints = new IdentityHashMap<>();
     private NativeImageHeap heap;
     private long totalHeapSize = 0;
 
@@ -176,17 +162,13 @@ public class NativeImageHeapGraph {
         objectAccesses.computeIfAbsent(method, m -> Collections.newSetFromMap(new IdentityHashMap<>())).add(heapObject);
     }
 
-    private static ArrayList<ObjectInfo> getAllReferencesToObjectInHeap(ObjectInfo objectInfo) {
-        ArrayList<ObjectInfo> referencesInfo = new ArrayList<>();
-        if (objectInfo.reason instanceof ObjectInfo) {
-            referencesInfo.add((ObjectInfo) objectInfo.reason);
-        }
-        for (Object info : objectInfo.otherReasons) {
-            if (info instanceof ObjectInfo) {
-                referencesInfo.add((ObjectInfo) info);
-            }
-        }
-        return referencesInfo;
+
+
+    private static List<ObjectInfo> getAllReferencesToObjectInHeap(ObjectInfo objectInfo) {
+        return objectInfo.getReasons().stream()
+                .filter(r -> r instanceof ObjectInfo)
+                .map(r -> (ObjectInfo)r)
+                .collect(Collectors.toList());
     }
 
     private long computeComponentSize(Collection<Object> objects) {
@@ -199,12 +181,12 @@ public class NativeImageHeapGraph {
     }
 
     private void connectChildToParentObjects(ObjectInfo childObjectInfo) {
-        ArrayList<ObjectInfo> referencesForObject = getAllReferencesToObjectInHeap(childObjectInfo);
+        List<ObjectInfo> referencesForObject = getAllReferencesToObjectInHeap(childObjectInfo);
         for (ObjectInfo parentObjectInfo : referencesForObject) {
             Object child = childObjectInfo.getObject();
             graph.connect(parentObjectInfo.getObject(), child);
-            if (childObjectInfo.reason instanceof String) {
-                entryPoints.computeIfAbsent((String) childObjectInfo.reason,
+            if (childObjectInfo.getMainReason() instanceof String) {
+                rootEntryPoints.computeIfAbsent(childObjectInfo.getMainReason(),
                         c -> Collections.newSetFromMap(new IdentityHashMap<>())).add(child);
             }
         }
@@ -228,7 +210,7 @@ public class NativeImageHeapGraph {
         System.out.println("NativeImageHeapGraph.NativeImageHeapGraph([heap]):211");
         System.out.println(graph.getNumberOfNodes());
         System.out.println(graph.getNumberOfEdges());
-        entryPoints.forEach((k,v) -> System.out.printf("%s -> %d\n", k, v.size()));
+        rootEntryPoints.forEach((k, v) -> System.out.printf("%s -> %d\n", k, v.size()));
         System.out.println("NativeImageHeapGraph.NativeImageHeapGraph([heap]):215:end");
     }
 }
