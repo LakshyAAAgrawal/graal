@@ -9,12 +9,15 @@ import org.graalvm.compiler.debug.GraalError;
 import org.graalvm.nativeimage.ImageSingletons;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
 
 @AutomaticallyRegisteredFeature
 public class NativeImageHeapGraphFeature implements InternalFeature {
+
+    NativeImageHeap heap;
 
     @Override
     public void afterRegistration(AfterRegistrationAccess access) {
@@ -32,11 +35,21 @@ public class NativeImageHeapGraphFeature implements InternalFeature {
     public void afterHeapLayout(AfterHeapLayoutAccess a) {
         FeatureImpl.AfterHeapLayoutAccessImpl access = (FeatureImpl.AfterHeapLayoutAccessImpl) a;
         NativeImageHeapGraphAccessPhase.NativeImageHeapAccessRecords accessRecords = ImageSingletons.lookup(NativeImageHeapGraphAccessPhase.NativeImageHeapAccessRecords.class);
-        NativeImageHeapGraph graph = new NativeImageHeapGraph(accessRecords, access.getHeap());
+        this.heap = access.getHeap();
+        NativeImageHeapGraph graph = new NativeImageHeapGraph(accessRecords, heap);
+    }
+
+    @Override
+    public void afterImageWrite(AfterImageWriteAccess access) {
+        System.out.println("======== ImageHeap Partitions ==========");
+        System.out.println("Using ImageHeapLayouter: " + heap.getLayouter().getClass());
+        Arrays.stream(heap.getLayouter().getPartitions())
+                .sorted((p1,p2) -> Long.compare(p2.getSize(), p1.getSize()))
+                .map(p -> String.format("%d-%s-%s", p.getSize(), p.getName(), p.getClass()))
+                .forEach(System.out::println);
     }
 
     private void testGraph() {
-        System.out.println("NativeImageHeapGraphFeature.testGraph");
         DirectedGraph<Integer> graph = new DirectedGraph<>();
         Integer a = 0;
         Integer b = 1;
@@ -54,7 +67,6 @@ public class NativeImageHeapGraphFeature implements InternalFeature {
     }
 
     private void testConnectedComponents() {
-        System.out.println("NativeImageHeapGraphFeature.testConnectedComponents");
         DirectedGraph<Integer> graph = new DirectedGraph<>();
         Integer a = 0;
         Integer b = 1;

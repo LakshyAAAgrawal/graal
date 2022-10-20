@@ -1,5 +1,9 @@
 package com.oracle.svm.hosted.image;
 
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
 import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -84,6 +88,14 @@ public class NativeImageHeapGraph {
         return totalSize;
     }
 
+    private void dumpComponent(PrintStream out, ArrayList<ObjectInfo> objects) {
+        System.out.println("ObjectClass(Size)");
+        for (ObjectInfo object : objects) {
+            out.printf("%s(%d)\n", object.getClazz(), object.getSize());
+            object.getReasons().forEach(o -> out.printf("\t%s\n", o));
+        }
+    }
+
     private void create() {
         this.totalHeapSize = this.heap.getObjects().stream().map(ObjectInfo::getSize).reduce(Long::sum).get();
         System.out.printf("Total Heap Size: %d\n", this.totalHeapSize);
@@ -92,7 +104,6 @@ public class NativeImageHeapGraph {
                                                           // ObjectInfo, HostedField
             connectChildToParentObjects(objectInfo);
         }
-        System.out.println("NativeImageHeapGraph.NativeImageHeapGraph([heap]):210");
         List<ArrayList<ObjectInfo>> components = graph.getRoots().parallelStream()
                         .map(root -> DirectedGraph.DFSVisitor.create(this.graph).dfs(root))
                         .collect(Collectors.toList());
@@ -103,19 +114,22 @@ public class NativeImageHeapGraph {
                         .mapToObj(i -> Pair.create(componentsSizes.get(i), components.get(i)))
                         .sorted((a, b) -> b.getLeft().compareTo(a.getLeft()))
                         .collect(Collectors.toList());
-        System.out.println("NativeImageHeapGraph.NativeImageHeapGraph([heap]):222");
         int limitNumOfComponentsTo = 32;
         List<Double> componentsSizesFraction = sortedComponents.stream()
                         .map(o -> o.getLeft().doubleValue() / this.totalHeapSize)
                         .collect(Collectors.toList());
-        IntStream.range(0, limitNumOfComponentsTo)
-                        .forEach(i -> System.out.printf("%f\t%s\t%d\t%s\n", componentsSizesFraction.get(i), sortedComponents.get(i).getRight().get(0).getObjectClass(),
-                                sortedComponents.get(i).getRight().size(),
-                                sortedComponents.get(i).getRight().get(0).getMainReason().toString()));
-        // components.get(0).forEach(System.out::println);
-        System.out.println("NativeImageHeapGraph.NativeImageHeapGraph([heap]):211");
-        System.out.println(graph.getNumberOfNodes());
-        System.out.println(graph.getNumberOfEdges());
-        System.out.println("NativeImageHeapGraph.NativeImageHeapGraph([heap]):215:end");
+        System.out.println("===========Connected components in NativeImageHeap===========");
+        System.out.println("ComponentSizeInBytes/TotalHeapSize(PercentOfTotalSize)\tRootObjectType\tWhyTheObjectIsInNativeImageHeap");
+        List<String> componentsSummaryHeader = IntStream.range(0, limitNumOfComponentsTo)
+                        .mapToObj(i -> String.format("%d - %d/%d(%f)\t%s\t%s",
+                                        i,
+                                        sortedComponents.get(i).getLeft(),
+                                        this.totalHeapSize,
+                                        componentsSizesFraction.get(i),
+                                        sortedComponents.get(i).getRight().get(0).getObjectClass(),
+                                        sortedComponents.get(i).getRight().get(0).getMainReason().toString()))
+                        .collect(Collectors.toList());
+        componentsSummaryHeader.forEach(System.out::println);
     }
+
 }
