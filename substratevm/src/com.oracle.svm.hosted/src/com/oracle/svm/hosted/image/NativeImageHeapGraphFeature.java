@@ -6,6 +6,8 @@ import com.oracle.svm.core.option.HostedOptionKey;
 import com.oracle.svm.core.util.VMError;
 import com.oracle.svm.hosted.FeatureImpl;
 import org.graalvm.compiler.core.phases.StaticFieldsAccessGatherPhase;
+import org.graalvm.compiler.options.Option;
+import org.graalvm.compiler.options.OptionType;
 import org.graalvm.nativeimage.ImageSingletons;
 
 import java.io.PrintStream;
@@ -16,6 +18,12 @@ import java.util.stream.Collectors;
 
 @AutomaticallyRegisteredFeature
 public class NativeImageHeapGraphFeature implements InternalFeature {
+
+    public static class Options {
+        @Option(help = {}, type = OptionType.Debug)
+        public static final HostedOptionKey<Integer> NativeImageHeapGraphNumOfComponents = new HostedOptionKey<>(16);
+    }
+
     private NativeImageHeap heap;
     private StaticFieldsAccessGatherPhase.StaticFieldsAccessRecords accessRecords;
 
@@ -42,7 +50,7 @@ public class NativeImageHeapGraphFeature implements InternalFeature {
     public void afterImageWrite(AfterImageWriteAccess a) {
         NativeImageHeapGraph graph = new NativeImageHeapGraph(accessRecords, heap);
         printImageHeapPartitionsStatistics(System.out);
-        graph.printStatistics(System.out, 32);
+        graph.printStatistics(System.out, Options.NativeImageHeapGraphNumOfComponents.getValue());
     }
 
     private void printImageHeapPartitionsStatistics(PrintStream out) {

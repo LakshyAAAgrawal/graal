@@ -102,6 +102,7 @@ public class NativeImageHeapGraph {
 
         // Compute components size percentage relative to the total heap size
         List<Double> componentsSizesFraction = sortedComponents.stream()
+                        .limit(numOfComponents)
                         .map(o -> o.getLeft().doubleValue() / this.totalHeapSize)
                         .collect(Collectors.toList());
 
@@ -118,9 +119,10 @@ public class NativeImageHeapGraph {
                         .forEach(out::println);
 
         out.println("==========ImagePartitionStatistics per component============");
-        int numOfPartitions = this.heap.getLayouter().getPartitions().length;
-        sortedComponents.forEach(pair ->
-                new ComponentImagePartitionInfo(this.heap.getLayouter().getPartitions(), pair.getRight())
+        sortedComponents.stream()
+                .limit(numOfComponents)
+                .forEach(pair ->
+                        new ComponentImagePartitionInfo(this.heap.getLayouter().getPartitions(), pair.getRight())
                         .printHistogram(out));
     }
 
@@ -148,7 +150,7 @@ public class NativeImageHeapGraph {
 
         public void printHistogram(PrintStream out) {
             List<Pair<ImageHeapPartition, Long>> histogram = getHistogram();
-            out.printf("=========%s=========", this.component.get(0).getMainReason());
+            out.printf("=========%s=========\n", this.component.get(0).getMainReason());
             for (int i = 0; i < histogram.size(); i++) {
                 Pair<ImageHeapPartition, Long> partitionInfo = histogram.get(i);
                 ImageHeapPartition partition = partitionInfo.getLeft();
