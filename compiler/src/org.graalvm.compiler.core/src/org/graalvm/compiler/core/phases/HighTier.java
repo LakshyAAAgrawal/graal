@@ -127,7 +127,7 @@ public class HighTier extends BaseTier<HighTierContext> {
             appendPhase(new NodeCounterPhase(NodeCounterPhase.Stage.LATE));
         }
 
-        appendPhase(new NativeImageHeapGraphAccessPhase());
+        appendPhase(new StaticFieldsAccessGatherPhase());
         appendPhase(new BoxNodeOptimizationPhase(canonicalizer));
         appendPhase(new HighTierLoweringPhase(canonicalizer, true));
     }
