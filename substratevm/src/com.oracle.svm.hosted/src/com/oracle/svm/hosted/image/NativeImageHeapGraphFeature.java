@@ -2,22 +2,22 @@ package com.oracle.svm.hosted.image;
 
 import com.oracle.svm.core.feature.AutomaticallyRegisteredFeature;
 import com.oracle.svm.core.feature.InternalFeature;
+import com.oracle.svm.core.option.HostedOptionKey;
 import com.oracle.svm.core.util.VMError;
 import com.oracle.svm.hosted.FeatureImpl;
-import org.graalvm.compiler.core.phases.NativeImageHeapGraphAccessPhase;
-import org.graalvm.compiler.debug.GraalError;
+import org.graalvm.compiler.core.phases.StaticFieldsAccessGatherPhase;
 import org.graalvm.nativeimage.ImageSingletons;
 
+import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
 
 @AutomaticallyRegisteredFeature
 public class NativeImageHeapGraphFeature implements InternalFeature {
-
-    NativeImageHeap heap;
+    private NativeImageHeap heap;
+    private StaticFieldsAccessGatherPhase.StaticFieldsAccessRecords accessRecords;
 
     @Override
     public void afterRegistration(AfterRegistrationAccess access) {
@@ -27,29 +27,34 @@ public class NativeImageHeapGraphFeature implements InternalFeature {
 
     @Override
     public void beforeCompilation(BeforeCompilationAccess access) {
-        ImageSingletons.add(NativeImageHeapGraphAccessPhase.NativeImageHeapAccessRecords.class,
-                        new NativeImageHeapGraphAccessPhase.NativeImageHeapAccessRecords());
+        ImageSingletons.add(StaticFieldsAccessGatherPhase.StaticFieldsAccessRecords.class,
+                        new StaticFieldsAccessGatherPhase.StaticFieldsAccessRecords());
     }
 
     @Override
     public void afterHeapLayout(AfterHeapLayoutAccess a) {
         FeatureImpl.AfterHeapLayoutAccessImpl access = (FeatureImpl.AfterHeapLayoutAccessImpl) a;
-        NativeImageHeapGraphAccessPhase.NativeImageHeapAccessRecords accessRecords = ImageSingletons.lookup(NativeImageHeapGraphAccessPhase.NativeImageHeapAccessRecords.class);
+        this.accessRecords = ImageSingletons.lookup(StaticFieldsAccessGatherPhase.StaticFieldsAccessRecords.class);
         this.heap = access.getHeap();
-        NativeImageHeapGraph graph = new NativeImageHeapGraph(accessRecords, heap);
     }
 
     @Override
-    public void afterImageWrite(AfterImageWriteAccess access) {
-        System.out.println("======== ImageHeap Partitions ==========");
-        System.out.println("Using ImageHeapLayouter: " + heap.getLayouter().getClass());
-        Arrays.stream(heap.getLayouter().getPartitions())
-                .sorted((p1,p2) -> Long.compare(p2.getSize(), p1.getSize()))
-                .map(p -> String.format("%d-%s-%s", p.getSize(), p.getName(), p.getClass()))
-                .forEach(System.out::println);
+    public void afterImageWrite(AfterImageWriteAccess a) {
+        NativeImageHeapGraph graph = new NativeImageHeapGraph(accessRecords, heap);
+        printImageHeapPartitionsStatistics(System.out);
+        graph.printStatistics(System.out, 32);
     }
 
-    private void testGraph() {
+    private void printImageHeapPartitionsStatistics(PrintStream out) {
+        out.println("======== ImageHeap Partitions ==========");
+        out.println("Using ImageHeapLayouter: " + heap.getLayouter().getClass());
+        Arrays.stream(heap.getLayouter().getPartitions())
+                .sorted((p1,p2) -> Long.compare(p2.getSize(), p1.getSize()))
+                .map(p -> String.format("%d-%s", p.getSize(), p.getName()))
+                .forEach(out::println);
+    }
+
+    private static void testGraph() {
         DirectedGraph<Integer> graph = new DirectedGraph<>();
         Integer a = 0;
         Integer b = 1;
@@ -66,7 +71,7 @@ public class NativeImageHeapGraphFeature implements InternalFeature {
         VMError.guarantee(!graph.isRoot(d));
     }
 
-    private void testConnectedComponents() {
+    private static void testConnectedComponents() {
         DirectedGraph<Integer> graph = new DirectedGraph<>();
         Integer a = 0;
         Integer b = 1;
