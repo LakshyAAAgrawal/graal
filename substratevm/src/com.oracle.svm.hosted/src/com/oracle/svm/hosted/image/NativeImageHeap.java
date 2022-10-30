@@ -711,6 +711,7 @@ public final class NativeImageHeap implements ImageHeap {
 
     private final int imageHeapOffsetInAddressSpace = Heap.getHeap().getImageHeapOffsetInAddressSpace();
 
+
     public final class ObjectInfo implements ImageHeapObject {
         private final JavaConstant constant;
         private final HostedClass clazz;

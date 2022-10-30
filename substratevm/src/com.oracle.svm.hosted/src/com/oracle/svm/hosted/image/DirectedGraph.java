@@ -2,17 +2,12 @@ package com.oracle.svm.hosted.image;
 
 import java.io.PrintStream;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.Stack;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 /*
     Directed graph of Objects in the NativeImageHeap.
@@ -114,7 +109,6 @@ public class DirectedGraph<Node> {
     }
 
     public static class DFSVisitor<Node> {
-        private ArrayList<Node> path = new ArrayList<>();
         private DirectedGraph<Node> graph;
 
         public DFSVisitor(DirectedGraph<Node> graph) {
@@ -126,6 +120,7 @@ public class DirectedGraph<Node> {
         }
 
         public ArrayList<Node> dfs(Node start) {
+            ArrayList<Node> visitOrder = new ArrayList<>();
             Stack<Node> stack = new Stack<>();
             boolean[] visited = new boolean[graph.getNumberOfNodes()];
             stack.add(start);
@@ -136,18 +131,43 @@ public class DirectedGraph<Node> {
                     continue;
                 }
                 visited[currentNodeId] = true;
-                path.add(currentNode);
+                visitOrder.add(currentNode);
                 for (Node neighbour : graph.getNeighbours(currentNode)) {
                     if (!visited[graph.getNodeId(neighbour)]) {
                         stack.push(neighbour);
                     }
                 }
             }
-            return path;
+            return visitOrder;
         }
 
-        public ArrayList<Node> getVisitedNodes() {
-            return path;
+        public List<List<Node>> dfs(ArrayList<Node> roots) {
+            Stack<Node> stack = new Stack<>();
+            boolean[] visited = new boolean[graph.getNumberOfNodes()];
+            ArrayList<List<Node>> runs = new ArrayList<>();
+            for (Node start : roots) {
+                ArrayList<Node> visitOrder = new ArrayList<>();
+                if (visited[graph.getNodeId(start)]) {
+                    continue;
+                }
+                stack.add(start);
+                while (!stack.isEmpty()) {
+                    Node currentNode = stack.pop();
+                    int currentNodeId = graph.getNodeId(currentNode);
+                    if (visited[currentNodeId]) {
+                        continue;
+                    }
+                    visited[currentNodeId] = true;
+                    visitOrder.add(currentNode);
+                    for (Node neighbour : graph.getNeighbours(currentNode)) {
+                        if (!visited[graph.getNodeId(neighbour)]) {
+                            stack.push(neighbour);
+                        }
+                    }
+                }
+                runs.add(visitOrder);
+            }
+            return runs;
         }
     }
 }

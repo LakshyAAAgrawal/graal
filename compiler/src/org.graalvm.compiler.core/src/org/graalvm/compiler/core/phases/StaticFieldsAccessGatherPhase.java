@@ -26,6 +26,10 @@ public class StaticFieldsAccessGatherPhase extends BasePhase<CoreProviders> {
             fieldToMethods.computeIfAbsent(field, m -> Collections.newSetFromMap(new IdentityHashMap<>())).add(method);
             accessedFields.add(field);
         }
+
+        public Set<JavaMethod> getMethodsForField(ResolvedJavaField field) {
+            return fieldToMethods.getOrDefault(field, Set.of());
+        }
     }
 
     private final StaticFieldsAccessRecords accesses;

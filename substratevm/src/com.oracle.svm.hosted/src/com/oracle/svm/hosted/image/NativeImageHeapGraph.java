@@ -1,15 +1,21 @@
 package com.oracle.svm.hosted.image;
 
 import java.io.PrintStream;
+import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import com.oracle.svm.core.util.ConcurrentIdentityHashMap;
+import jdk.vm.ci.meta.ResolvedJavaField;
 import org.graalvm.collections.Pair;
 import org.graalvm.compiler.core.phases.StaticFieldsAccessGatherPhase;
 
@@ -78,24 +84,52 @@ public class NativeImageHeapGraph {
         }
     }
 
-    public void printStatistics(PrintStream out, int numOfComponents) {
+    private static float MB(long bytes) {
+        return bytes / (1048576f);
+    }
+
+    public static <T> Predicate<T> distinctByKey(Function<? super T, Object> keyExtractor) {
+        Map<Object, Boolean> map = new ConcurrentIdentityHashMap<>();
+        return t -> map.putIfAbsent(keyExtractor.apply(t), Boolean.TRUE) == null;
+    }
+
+    public void printStatistics(PrintWriter out) {
         out.println("============Native Image Heap Object Graph Stats============");
-        out.printf("Total Heap Size: %d\n", this.totalHeapSize);
+
+        out.printf("Total Heap Size: %.3fMB\n", MB(this.totalHeapSize));
         out.printf("Total number of objects in the heap: %d\n", this.heap.getObjects().size());
 
-        // Compute connected components by running dfs visit from all the root nodes
-        List<ArrayList<ObjectInfo>> components = graph.getRoots().parallelStream()
-                        .map(root -> DirectedGraph.DFSVisitor.create(this.graph).dfs(root))
-                        .collect(Collectors.toList());
-        numOfComponents = numOfComponents > 0 ? numOfComponents : components.size();
+        int numOfComponents = NativeImageHeapGraphFeature.Options.NativeImageHeapGraphNumOfComponents.getValue();
 
+        List<String> reasonFilterPatterns = Arrays.stream(NativeImageHeapGraphFeature.Options.NativeImageHeapGraphReasonFilterOut
+                        .getValue()
+                        .split(","))
+                        .map(String::strip)
+                        .collect(Collectors.toList());
+        Predicate<String> reasonFilterOut = (c) -> reasonFilterPatterns.stream().noneMatch(c::contains);
+
+        List<String> objectFilterPatterns = Arrays.stream(NativeImageHeapGraphFeature.Options.NativeImageHeapGraphObjectFilterOut
+                        .getValue()
+                        .split(","))
+                        .map(String::strip)
+                        .collect(Collectors.toList());
+        Predicate<String> objectFilterOut = (c) -> objectFilterPatterns.stream().noneMatch(c::contains);
+        // Compute connected components by running dfs visit from all the root nodes
+        List<List<ObjectInfo>> components = graph.getRoots().stream().parallel()
+                        .filter(distinctByKey(ObjectInfo::getMainReason))
+                        .filter(o -> reasonFilterOut.test(o.getMainReason().toString()))
+                        .map(root -> DirectedGraph.DFSVisitor.create(this.graph).dfs(root))
+                        .filter(c -> objectFilterOut.test(c.get(0).toString()))
+                        .collect(Collectors.toList());
+
+        numOfComponents = numOfComponents > 0 ? Math.min(numOfComponents, components.size()) : components.size();
         // Compute each component size in bytes
         List<Long> componentsSizes = components.stream()
                         .map(this::computeComponentSize)
                         .collect(Collectors.toList());
 
         // Sort connected components by size
-        List<Pair<Long, ArrayList<ObjectInfo>>> sortedComponents = IntStream.range(0, components.size())
+        List<Pair<Long, List<ObjectInfo>>> sortedComponents = IntStream.range(0, components.size())
                         .mapToObj(i -> Pair.create(componentsSizes.get(i), components.get(i)))
                         .sorted((a, b) -> b.getLeft().compareTo(a.getLeft()))
                         .collect(Collectors.toList());
@@ -108,58 +142,84 @@ public class NativeImageHeapGraph {
 
         out.println();
         out.println("===========Connected components in NativeImageHeap===========");
-        out.println("ComponentSizeInBytes(FractionOfTotalHeapSize)\tRootObjectType\tReason");
-        IntStream.range(0, numOfComponents)
-                        .mapToObj(i -> String.format("%d - %d(%f)\t%s\t%s",
-                                        i,
-                                        sortedComponents.get(i).getLeft(),
-                                        componentsSizesFraction.get(i),
-                                        sortedComponents.get(i).getRight().get(0).getObjectClass(),
-                                        sortedComponents.get(i).getRight().get(0).getMainReason().toString()))
-                        .forEach(out::println);
+        String format = "%-10s %-12s %s -> %s\n";
+        out.printf(format,
+                        "Size", "HeapFraction", "Reason", "RootObjectType");
 
-        out.println("==========ImagePartitionStatistics per component============");
+
+        IntStream.range(0, numOfComponents)
+                        .mapToObj(i -> String.format(format,
+                                        String.format("%.4fMB", MB(sortedComponents.get(i).getLeft())),
+                                        String.format("%.4f", componentsSizesFraction.get(i)),
+                                        formatReason(sortedComponents.get(i).getRight().get(0).getMainReason()),
+                                        sortedComponents.get(i).getRight().get(0).getObjectClass().getName()))
+                        .forEach(out::print);
+
+        ComponentImagePartitionInfo.printHistogramDescription(out);
+
         sortedComponents.stream()
-                .limit(numOfComponents)
-                .forEach(pair ->
-                        new ComponentImagePartitionInfo(this.heap.getLayouter().getPartitions(), pair.getRight())
-                        .printHistogram(out));
+                        .limit(numOfComponents)
+                        .forEach(pair -> new ComponentImagePartitionInfo(this, pair.getRight())
+                                        .printHistogram(out));
+
+    }
+
+    private String formatReason(Object reason) {
+        if (reason == null) {
+            return "";
+        }
+        if (reason instanceof HostedField) {
+//            return this.accessRecords.getMethodsForField((HostedField)reason).stream()
+//                    .map(JavaMethod::getName).collect(Collectors.toList()).toString();
+            return ((HostedField)reason).getName();
+        }
+        return reason.toString();
     }
 
     private static class ComponentImagePartitionInfo {
         private final List<ImageHeapPartition> partitions;
         private final long[] componentSizeInPartition;
-        private final ArrayList<ObjectInfo> component;
+        private final List<ObjectInfo> component;
+        private final NativeImageHeapGraph graph;
 
-        public ComponentImagePartitionInfo(ImageHeapPartition[] partitions, ArrayList<ObjectInfo> objects) {
-            this.partitions = Arrays.asList(partitions);
-            this.componentSizeInPartition = new long[partitions.length];
-            this.component = objects;
-            for (ObjectInfo object : objects) {
+        public ComponentImagePartitionInfo(NativeImageHeapGraph graph, List<ObjectInfo> component) {
+            this.graph = graph;
+            this.partitions = List.of(graph.heap.getLayouter().getPartitions());
+            this.componentSizeInPartition = new long[partitions.size()];
+            this.component = component;
+            for (ObjectInfo object : component) {
                 ImageHeapPartition partition = object.getPartition();
                 int index = this.partitions.indexOf(partition);
                 componentSizeInPartition[index] += object.getSize();
             }
         }
 
-        public List<Pair<ImageHeapPartition, Long>> getHistogram() {
-            return IntStream.range(0, partitions.size())
-                    .mapToObj(i -> Pair.create(partitions.get(i), componentSizeInPartition[i]))
-                    .collect(Collectors.toList());
+        public static void printHistogramDescription(PrintWriter out) {
+            out.println();
+            out.println("==========ImagePartitionStatistics per component=============");
+            out.println("CSp - Component size in Partition");
+            out.println("PS - Partition size");
+            out.println("F - Total space taken by component inside a partition");
         }
 
-        public void printHistogram(PrintStream out) {
+        public List<Pair<ImageHeapPartition, Long>> getHistogram() {
+            return IntStream.range(0, partitions.size())
+                            .mapToObj(i -> Pair.create(partitions.get(i), componentSizeInPartition[i]))
+                            .collect(Collectors.toList());
+        }
+
+        public void printHistogram(PrintWriter out) {
             List<Pair<ImageHeapPartition, Long>> histogram = getHistogram();
-            out.printf("=========%s=========\n", this.component.get(0).getMainReason());
-            for (int i = 0; i < histogram.size(); i++) {
-                Pair<ImageHeapPartition, Long> partitionInfo = histogram.get(i);
+            out.printf("\n=========Reason: %s=========\n", this.graph.formatReason(this.component.get(0).getMainReason()));
+            out.printf("%-20s %-26s\n", "Partition", "CSp/PS=F");
+            for (Pair<ImageHeapPartition, Long> partitionInfo : histogram) {
                 ImageHeapPartition partition = partitionInfo.getLeft();
                 long componentSizeInPartition = partitionInfo.getRight();
-                out.printf("ImagePartition [%d] - %s - %d/%d (%f)\n",
-                        i, partition,
-                        componentSizeInPartition,
-                        partition.getSize(),
-                        (double) componentSizeInPartition / partition.getSize());
+                out.printf("%-20s %.4fMB/%.4fMB=%.4f\n",
+                                partition,
+                                MB(componentSizeInPartition),
+                                MB(partition.getSize()),
+                                (double) componentSizeInPartition / partition.getSize());
             }
         }
     }

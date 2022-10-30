@@ -1,19 +1,27 @@
 package com.oracle.svm.hosted.image;
 
+import com.oracle.graal.pointsto.reports.ReportUtils;
+import com.oracle.svm.core.SubstrateOptions;
 import com.oracle.svm.core.feature.AutomaticallyRegisteredFeature;
 import com.oracle.svm.core.feature.InternalFeature;
 import com.oracle.svm.core.option.HostedOptionKey;
 import com.oracle.svm.core.util.VMError;
 import com.oracle.svm.hosted.FeatureImpl;
+import org.graalvm.compiler.core.common.GraalOptions;
 import org.graalvm.compiler.core.phases.StaticFieldsAccessGatherPhase;
+import org.graalvm.compiler.debug.DebugOptions;
 import org.graalvm.compiler.options.Option;
 import org.graalvm.compiler.options.OptionType;
 import org.graalvm.nativeimage.ImageSingletons;
 
+import java.io.File;
 import java.io.PrintStream;
+import java.io.PrintWriter;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 @AutomaticallyRegisteredFeature
@@ -22,11 +30,27 @@ public class NativeImageHeapGraphFeature implements InternalFeature {
     public static class Options {
         @Option(help = {}, type = OptionType.Debug)
         public static final HostedOptionKey<Integer> NativeImageHeapGraphNumOfComponents = new HostedOptionKey<>(16);
+
+        @Option(help = {}, type = OptionType.Debug)
+        public static final HostedOptionKey<String> NativeImageHeapGraphReasonFilterOut = new HostedOptionKey<>("");
+
+        @Option(help = {}, type = OptionType.Debug)
+        public static final HostedOptionKey<Float> NativeImageHeapGraphComponentSizeThreshold = new HostedOptionKey<>(0.0f);
+
+        @Option(help = {}, type = OptionType.Debug)
+        public static final HostedOptionKey<Boolean> NativeImageHeapGraphComponentDumpToCSV = new HostedOptionKey<>(false);
+
+        @Option(help = {}, type = OptionType.Debug)
+        public static final HostedOptionKey<String> NativeImageHeapGraphObjectFilterOut = new HostedOptionKey<>("");
+
+        @Option(help = {}, type = OptionType.Debug)
+        public static final HostedOptionKey<String> NativeImageHeapGraphReportDumpPath = new HostedOptionKey<>("nih-reports");
     }
 
     private NativeImageHeap heap;
     private StaticFieldsAccessGatherPhase.StaticFieldsAccessRecords accessRecords;
 
+    private static final String REPORT_TYPE = "image-heap-object-graph-stats.txt";
     @Override
     public void afterRegistration(AfterRegistrationAccess access) {
         testGraph();
@@ -48,9 +72,11 @@ public class NativeImageHeapGraphFeature implements InternalFeature {
 
     @Override
     public void afterImageWrite(AfterImageWriteAccess a) {
+        FeatureImpl.AfterImageWriteAccessImpl access = (FeatureImpl.AfterImageWriteAccessImpl) a;
         NativeImageHeapGraph graph = new NativeImageHeapGraph(accessRecords, heap);
-        printImageHeapPartitionsStatistics(System.out);
-        graph.printStatistics(System.out, Options.NativeImageHeapGraphNumOfComponents.getValue());
+//        printImageHeapPartitionsStatistics(System.out);
+        Path path = Path.of(Options.NativeImageHeapGraphReportDumpPath.getValue(), access.getImagePath().getFileName() + "_" + REPORT_TYPE);
+        ReportUtils.report("Native image heap object graph info", path, graph::printStatistics);
     }
 
     private void printImageHeapPartitionsStatistics(PrintStream out) {
