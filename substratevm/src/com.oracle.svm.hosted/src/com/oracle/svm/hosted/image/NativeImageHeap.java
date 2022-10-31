@@ -29,7 +29,6 @@ import static com.oracle.svm.core.util.VMError.shouldNotReachHere;
 import java.lang.reflect.Array;
 import java.lang.reflect.Modifier;
 import java.util.ArrayDeque;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -726,7 +725,8 @@ public final class NativeImageHeap implements ImageHeap {
          * a root object which refers to this object, or is a String explaining why this object is
          * in the heap. The reason field is like a "comes from" pointer.
          */
-        private final List<Object> reasons;
+        private final Object firstReason;
+        private final Set<Object> allReasons;
 
         ObjectInfo(Object object, long size, HostedClass clazz, int identityHashCode, Object reason) {
             this(SubstrateObjectConstant.forObject(object), size, clazz, identityHashCode, reason);
@@ -739,19 +739,21 @@ public final class NativeImageHeap implements ImageHeap {
             this.offsetInPartition = -1L;
             this.size = size;
             this.identityHashCode = identityHashCode;
-            this.reasons = new ArrayList<>(List.of(reason));
+            this.firstReason = reason;
+            this.allReasons = Collections.newSetFromMap(new IdentityHashMap<>());
+            this.allReasons.add(reason);
         }
 
         public void addReason(Object reason) {
-            this.reasons.add(reason);
+            this.allReasons.add(reason);
         }
 
         public Object getMainReason() {
-            return this.reasons.get(0);
+            return this.firstReason;
         }
 
-        public List<Object> getReasons() {
-            return reasons;
+        public Set<Object> getAllReasons() {
+            return allReasons;
         }
 
         @Override
