@@ -50,6 +50,7 @@ import java.io.Reader;
 import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Type;
+import java.math.BigInteger;
 import java.net.URI;
 import java.net.URL;
 import java.nio.ByteOrder;
@@ -955,6 +956,12 @@ public abstract class AbstractPolyglotImpl {
         }
 
         public abstract long asLong(Object context, Object receiver);
+
+        public boolean fitsInBigInteger(Object context, Object receiver) {
+            return false;
+        }
+
+        public abstract BigInteger asBigInteger(Object context, Object receiver);
 
         public boolean fitsInDouble(Object context, Object receiver) {
             return false;

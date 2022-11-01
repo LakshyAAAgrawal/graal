@@ -41,6 +41,7 @@
 package com.oracle.truffle.host;
 
 import java.lang.reflect.Array;
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.ReadOnlyBufferException;
@@ -1432,6 +1433,16 @@ final class HostObject implements TruffleObject {
     }
 
     @ExportMessage
+    boolean fitsInBigInteger(@CachedLibrary("this") InteropLibrary thisLibrary,
+                    @Shared("numbers") @CachedLibrary(limit = "LIMIT") InteropLibrary numbers) {
+        if (thisLibrary.isNumber(this)) {
+            return numbers.fitsInBigInteger(obj);
+        } else {
+            return false;
+        }
+    }
+
+    @ExportMessage
     boolean fitsInFloat(@CachedLibrary("this") InteropLibrary thisLibrary,
                     @Shared("numbers") @CachedLibrary(limit = "LIMIT") InteropLibrary numbers) {
         if (thisLibrary.isNumber(this)) {
@@ -1493,6 +1504,18 @@ final class HostObject implements TruffleObject {
                     @Shared("error") @Cached BranchProfile error) throws UnsupportedMessageException {
         if (thisLibrary.isNumber(this)) {
             return numbers.asLong(obj);
+        } else {
+            error.enter();
+            throw UnsupportedMessageException.create();
+        }
+    }
+
+    @ExportMessage
+    BigInteger asBigInteger(@CachedLibrary("this") InteropLibrary thisLibrary,
+                    @Shared("numbers") @CachedLibrary(limit = "LIMIT") InteropLibrary numbers,
+                    @Shared("error") @Cached BranchProfile error) throws UnsupportedMessageException {
+        if (thisLibrary.isNumber(this)) {
+            return numbers.asBigInteger(obj);
         } else {
             error.enter();
             throw UnsupportedMessageException.create();

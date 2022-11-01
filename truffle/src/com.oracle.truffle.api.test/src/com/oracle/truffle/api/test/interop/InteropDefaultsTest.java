@@ -44,6 +44,8 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.junit.Test;
@@ -100,111 +102,135 @@ public class InteropDefaultsTest extends InteropLibraryBaseTest {
 
     @Test
     public void testByteDefault() throws InteropException {
-        assertNumber(Byte.MIN_VALUE, true, true, true, true, true, true);
-        assertNumber((byte) 0, true, true, true, true, true, true);
-        assertNumber(Byte.MAX_VALUE, true, true, true, true, true, true);
+        assertNumber(Byte.MIN_VALUE, true, true, true, true, true, true, true);
+        assertNumber((byte) 0, true, true, true, true, true, true, true);
+        assertNumber(Byte.MAX_VALUE, true, true, true, true, true, true, true);
     }
 
     @Test
     public void testShortDefault() throws InteropException {
-        assertNumber(Short.MIN_VALUE, false, true, true, true, true, true);
-        assertNumber((short) (Byte.MIN_VALUE - 1), false, true, true, true, true, true);
-        assertNumber((short) Byte.MIN_VALUE, true, true, true, true, true, true);
-        assertNumber((short) 0, true, true, true, true, true, true);
-        assertNumber((short) Byte.MAX_VALUE, true, true, true, true, true, true);
-        assertNumber((short) (Byte.MAX_VALUE + 1), false, true, true, true, true, true);
-        assertNumber(Short.MAX_VALUE, false, true, true, true, true, true);
+        assertNumber(Short.MIN_VALUE, false, true, true, true, true, true, true);
+        assertNumber((short) (Byte.MIN_VALUE - 1), false, true, true, true, true, true, true);
+        assertNumber((short) Byte.MIN_VALUE, true, true, true, true, true, true, true);
+        assertNumber((short) 0, true, true, true, true, true, true, true);
+        assertNumber((short) Byte.MAX_VALUE, true, true, true, true, true, true, true);
+        assertNumber((short) (Byte.MAX_VALUE + 1), false, true, true, true, true, true, true);
+        assertNumber(Short.MAX_VALUE, false, true, true, true, true, true, true);
     }
 
     @Test
     public void testIntDefault() throws InteropException {
-        assertNumber(Integer.MIN_VALUE, false, false, true, true, true, true);
-        assertNumber(Short.MIN_VALUE - 1, false, false, true, true, true, true);
-        assertNumber((int) Short.MIN_VALUE, false, true, true, true, true, true);
-        assertNumber(Byte.MIN_VALUE - 1, false, true, true, true, true, true);
-        assertNumber((int) Byte.MIN_VALUE, true, true, true, true, true, true);
-        assertNumber(0, true, true, true, true, true, true);
-        assertNumber((int) Byte.MAX_VALUE, true, true, true, true, true, true);
-        assertNumber(Byte.MAX_VALUE + 1, false, true, true, true, true, true);
-        assertNumber((int) Short.MAX_VALUE, false, true, true, true, true, true);
-        assertNumber(Short.MAX_VALUE + 1, false, false, true, true, true, true);
-        assertNumber(1 << 24, false, false, true, true, true, true);
-        assertNumber((1 << 24) + 1, false, false, true, true, false, true);
-        assertNumber(1 << 25, false, false, true, true, true, true);
-        assertNumber(Integer.MAX_VALUE, false, false, true, true, true, true);
+        assertNumber(Integer.MIN_VALUE, false, false, true, true, true, true, true);
+        assertNumber(Short.MIN_VALUE - 1, false, false, true, true, true, true, true);
+        assertNumber((int) Short.MIN_VALUE, false, true, true, true, true, true, true);
+        assertNumber(Byte.MIN_VALUE - 1, false, true, true, true, true, true, true);
+        assertNumber((int) Byte.MIN_VALUE, true, true, true, true, true, true, true);
+        assertNumber(0, true, true, true, true, true, true, true);
+        assertNumber((int) Byte.MAX_VALUE, true, true, true, true, true, true, true);
+        assertNumber(Byte.MAX_VALUE + 1, false, true, true, true, true, true, true);
+        assertNumber((int) Short.MAX_VALUE, false, true, true, true, true, true, true);
+        assertNumber(Short.MAX_VALUE + 1, false, false, true, true, true, true, true);
+        assertNumber(1 << 24, false, false, true, true, true, true, true);
+        assertNumber((1 << 24) + 1, false, false, true, true, true, false, true);
+        assertNumber(1 << 25, false, false, true, true, true, true, true);
+        assertNumber(Integer.MAX_VALUE, false, false, true, true, true, false, true);
     }
 
     @Test
     public void testLongDefault() throws InteropException {
-        assertNumber(Long.MIN_VALUE, false, false, false, true, true, true);
-        assertNumber((long) Integer.MIN_VALUE - 1, false, false, false, true, false, true);
-        assertNumber((long) Integer.MIN_VALUE, false, false, true, true, true, true);
-        assertNumber((long) Short.MIN_VALUE - 1, false, false, true, true, true, true);
-        assertNumber((long) Short.MIN_VALUE, false, true, true, true, true, true);
-        assertNumber((long) Byte.MIN_VALUE - 1, false, true, true, true, true, true);
-        assertNumber((long) Byte.MIN_VALUE, true, true, true, true, true, true);
-        assertNumber(0L, true, true, true, true, true, true);
-        assertNumber((long) Byte.MAX_VALUE, true, true, true, true, true, true);
-        assertNumber((long) Byte.MAX_VALUE + 1, false, true, true, true, true, true);
-        assertNumber((long) Short.MAX_VALUE, false, true, true, true, true, true);
-        assertNumber((long) Short.MAX_VALUE + 1, false, false, true, true, true, true);
-        assertNumber((long) Integer.MAX_VALUE, false, false, true, true, false, true);
-        assertNumber(1L << 24, false, false, true, true, true, true);
-        assertNumber((1L << 24) + 1, false, false, true, true, false, true);
-        assertNumber(1L << 25, false, false, true, true, true, true);
-        assertNumber((1L << 53) + 1, false, false, false, true, false, false);
-        assertNumber(1L << 54, false, false, false, true, true, true);
-        assertNumber(Long.MAX_VALUE, false, false, false, true, true, true);
+        assertNumber(Long.MIN_VALUE, false, false, false, true, true, true, true);
+        assertNumber((long) Integer.MIN_VALUE - 1, false, false, false, true, true, false, true);
+        assertNumber((long) Integer.MIN_VALUE, false, false, true, true, true, true, true);
+        assertNumber((long) Short.MIN_VALUE - 1, false, false, true, true, true, true, true);
+        assertNumber((long) Short.MIN_VALUE, false, true, true, true, true, true, true);
+        assertNumber((long) Byte.MIN_VALUE - 1, false, true, true, true, true, true, true);
+        assertNumber((long) Byte.MIN_VALUE, true, true, true, true, true, true, true);
+        assertNumber(0L, true, true, true, true, true, true, true);
+        assertNumber((long) Byte.MAX_VALUE, true, true, true, true, true, true, true);
+        assertNumber((long) Byte.MAX_VALUE + 1, false, true, true, true, true, true, true);
+        assertNumber((long) Short.MAX_VALUE, false, true, true, true, true, true, true);
+        assertNumber((long) Short.MAX_VALUE + 1, false, false, true, true, true, true, true);
+        assertNumber((long) Integer.MAX_VALUE, false, false, true, true, true, false, true);
+        assertNumber(1L << 24, false, false, true, true, true, true, true);
+        assertNumber((1L << 24) + 1, false, false, true, true, true, false, true);
+        assertNumber(1L << 25, false, false, true, true, true, true, true);
+        assertNumber((1L << 53) + 1, false, false, false, true, true, false, false);
+        assertNumber(1L << 54, false, false, false, true, true, true, true);
+        assertNumber(Long.MAX_VALUE, false, false, false, true, true, false, false);
+    }
+
+    @Test
+    public void testBigIntegerDefault() throws InteropException {
+        assertNumber(BigInteger.valueOf(Long.MIN_VALUE), false, false, false, true, true, true, true);
+        assertNumber(BigInteger.valueOf((long) Integer.MIN_VALUE - 1), false, false, false, true, true, false, true);
+        assertNumber(BigInteger.valueOf((long) Integer.MIN_VALUE), false, false, true, true, true, true, true);
+        assertNumber(BigInteger.valueOf((long) Short.MIN_VALUE - 1), false, false, true, true, true, true, true);
+        assertNumber(BigInteger.valueOf((long) Short.MIN_VALUE), false, true, true, true, true, true, true);
+        assertNumber(BigInteger.valueOf((long) Byte.MIN_VALUE - 1), false, true, true, true, true, true, true);
+        assertNumber(BigInteger.valueOf((long) Byte.MIN_VALUE), true, true, true, true, true, true, true);
+        assertNumber(BigInteger.valueOf(0L), true, true, true, true, true, true, true);
+        assertNumber(BigInteger.valueOf((long) Byte.MAX_VALUE), true, true, true, true, true, true, true);
+        assertNumber(BigInteger.valueOf((long) Byte.MAX_VALUE + 1), false, true, true, true, true, true, true);
+        assertNumber(BigInteger.valueOf((long) Short.MAX_VALUE), false, true, true, true, true, true, true);
+        assertNumber(BigInteger.valueOf((long) Short.MAX_VALUE + 1), false, false, true, true, true, true, true);
+        assertNumber(BigInteger.valueOf((long) Integer.MAX_VALUE), false, false, true, true, true, false, true);
+        assertNumber(BigInteger.valueOf(1L << 24), false, false, true, true, true, true, true);
+        assertNumber(BigInteger.valueOf((1L << 24) + 1), false, false, true, true, true, false, true);
+        assertNumber(BigInteger.valueOf(1L << 25), false, false, true, true, true, true, true);
+        assertNumber(BigInteger.valueOf((1L << 53) + 1), false, false, false, true, true, false, false);
+        assertNumber(BigInteger.valueOf(1L << 54), false, false, false, true, true, true, true);
+        assertNumber(BigInteger.valueOf(Long.MAX_VALUE), false, false, false, true, true, false, false);
+        assertNumber(new BigInteger(Long.toString(Long.MAX_VALUE) + Long.toString(Long.MAX_VALUE)), false, false, false, false, true, false, false);
+        assertNumber(new BigInteger(Long.toString(Long.MIN_VALUE) + Long.toString(Long.MAX_VALUE)), false, false, false, false, true, false, false);
     }
 
     @Test
     public void testFloatDefault() throws InteropException {
-        assertNumber(Float.NEGATIVE_INFINITY, false, false, false, false, true, true);
-        assertNumber((float) Long.MIN_VALUE, false, false, false, false, true, true);
-        assertNumber((float) Integer.MIN_VALUE - 1, false, false, false, false, true, true);
-        assertNumber((float) Integer.MIN_VALUE, false, false, false, false, true, true);
-        assertNumber((float) Short.MIN_VALUE - 1, false, false, true, true, true, true);
-        assertNumber((float) Short.MIN_VALUE, false, true, true, true, true, true);
-        assertNumber((float) Byte.MIN_VALUE - 1, false, true, true, true, true, true);
-        assertNumber((float) Byte.MIN_VALUE, true, true, true, true, true, true);
-        assertNumber(-0.0f, false, false, false, false, true, true);
-        assertNumber(0.0f, true, true, true, true, true, true);
-        assertNumber((float) Byte.MAX_VALUE, true, true, true, true, true, true);
-        assertNumber((float) Byte.MAX_VALUE + 1, false, true, true, true, true, true);
-        assertNumber((float) Short.MAX_VALUE, false, true, true, true, true, true);
-        assertNumber((float) Short.MAX_VALUE + 1, false, false, true, true, true, true);
-        assertNumber((float) Integer.MAX_VALUE, false, false, false, false, true, true);
-        assertNumber((float) Long.MAX_VALUE, false, false, false, false, true, true);
-        assertNumber(Float.POSITIVE_INFINITY, false, false, false, false, true, true);
-        assertNumber(Float.NaN, false, false, false, false, true, true);
-        assertNumber(Float.MIN_VALUE, false, false, false, false, true, true);
-        assertNumber(Float.MIN_NORMAL, false, false, false, false, true, true);
-        assertNumber(Float.MAX_VALUE, false, false, false, false, true, true);
+        assertNumber(Float.NEGATIVE_INFINITY, false, false, false, false, false, true, true);
+        assertNumber((float) Long.MIN_VALUE, false, false, false, true, true, true, true);
+        assertNumber((float) Integer.MIN_VALUE, false, false, true, true, true, true, true);
+        assertNumber((float) Short.MIN_VALUE - 1, false, false, true, true, true, true, true);
+        assertNumber((float) Short.MIN_VALUE, false, true, true, true, true, true, true);
+        assertNumber((float) Byte.MIN_VALUE - 1, false, true, true, true, true, true, true);
+        assertNumber((float) Byte.MIN_VALUE, true, true, true, true, true, true, true);
+        assertNumber(-0.0f, false, false, false, false, true, true, true);
+        assertNumber(0.0f, true, true, true, true, true, true, true);
+        assertNumber((float) Byte.MAX_VALUE, true, true, true, true, true, true, true);
+        assertNumber((float) Byte.MAX_VALUE + 1, false, true, true, true, true, true, true);
+        assertNumber((float) Short.MAX_VALUE, false, true, true, true, true, true, true);
+        assertNumber((float) Short.MAX_VALUE + 1, false, false, true, true, true, true, true);
+        assertNumber((float) Integer.MAX_VALUE, false, false, false, true, true, true, true);
+        assertNumber((float) Long.MAX_VALUE, false, false, false, false, true, true, true);
+        assertNumber(Float.POSITIVE_INFINITY, false, false, false, false, false, true, true);
+        assertNumber(Float.NaN, false, false, false, false, false, true, true);
+        assertNumber(Float.MIN_VALUE, false, false, false, false, false, true, true);
+        assertNumber(Float.MIN_NORMAL, false, false, false, false, false, true, true);
+        assertNumber(Float.MAX_VALUE, false, false, false, false, true, true, true);
     }
 
     @Test
     public void testDoubleDefault() throws InteropException {
-        assertNumber(Double.NEGATIVE_INFINITY, false, false, false, false, true, true);
-        assertNumber((double) Long.MIN_VALUE, false, false, false, false, true, true);
-        assertNumber((double) Integer.MIN_VALUE - 1, false, false, false, true, false, true);
-        assertNumber((double) Integer.MIN_VALUE, false, false, true, true, true, true);
-        assertNumber((double) Short.MIN_VALUE - 1, false, false, true, true, true, true);
-        assertNumber((double) Short.MIN_VALUE, false, true, true, true, true, true);
-        assertNumber((double) Byte.MIN_VALUE - 1, false, true, true, true, true, true);
-        assertNumber((double) Byte.MIN_VALUE, true, true, true, true, true, true);
-        assertNumber(-0.0d, false, false, false, false, true, true);
-        assertNumber(0.0d, true, true, true, true, true, true);
-        assertNumber((double) Byte.MAX_VALUE, true, true, true, true, true, true);
-        assertNumber((double) Byte.MAX_VALUE + 1, false, true, true, true, true, true);
-        assertNumber((double) Short.MAX_VALUE, false, true, true, true, true, true);
-        assertNumber((double) Short.MAX_VALUE + 1, false, false, true, true, true, true);
-        assertNumber((double) Integer.MAX_VALUE, false, false, true, true, false, true);
-        assertNumber((double) Long.MAX_VALUE, false, false, false, false, true, true);
-        assertNumber(Double.POSITIVE_INFINITY, false, false, false, false, true, true);
-        assertNumber(Double.NaN, false, false, false, false, true, true);
-        assertNumber(Double.MIN_VALUE, false, false, false, false, false, true);
-        assertNumber(Double.MIN_NORMAL, false, false, false, false, false, true);
-        assertNumber(Double.MAX_VALUE, false, false, false, false, false, true);
+        assertNumber(Double.NEGATIVE_INFINITY, false, false, false, false, false, true, true);
+        assertNumber((double) Long.MIN_VALUE, false, false, false, true, true, true, true);
+        assertNumber((double) Integer.MIN_VALUE - 1, false, false, false, true, true, false, true);
+        assertNumber((double) Integer.MIN_VALUE, false, false, true, true, true, true, true);
+        assertNumber((double) Short.MIN_VALUE - 1, false, false, true, true, true, true, true);
+        assertNumber((double) Short.MIN_VALUE, false, true, true, true, true, true, true);
+        assertNumber((double) Byte.MIN_VALUE - 1, false, true, true, true, true, true, true);
+        assertNumber((double) Byte.MIN_VALUE, true, true, true, true, true, true, true);
+        assertNumber(-0.0d, false, false, false, false, true, true, true);
+        assertNumber(0.0d, true, true, true, true, true, true, true);
+        assertNumber((double) Byte.MAX_VALUE, true, true, true, true, true, true, true);
+        assertNumber((double) Byte.MAX_VALUE + 1, false, true, true, true, true, true, true);
+        assertNumber((double) Short.MAX_VALUE, false, true, true, true, true, true, true);
+        assertNumber((double) Short.MAX_VALUE + 1, false, false, true, true, true, true, true);
+        assertNumber((double) Integer.MAX_VALUE, false, false, true, true, true, false, true);
+        assertNumber((double) Long.MAX_VALUE, false, false, false, false, true, true, true);
+        assertNumber(Double.POSITIVE_INFINITY, false, false, false, false, false, true, true);
+        assertNumber(Double.NaN, false, false, false, false, false, true, true);
+        assertNumber(Double.MIN_VALUE, false, false, false, false, false, false, true);
+        assertNumber(Double.MIN_NORMAL, false, false, false, false, false, false, true);
+        assertNumber(Double.MAX_VALUE, false, false, false, false, true, false, true);
     }
 
     @Test
@@ -246,7 +272,7 @@ public class InteropDefaultsTest extends InteropLibraryBaseTest {
     }
 
     private void assertNumber(Object v, boolean supportsByte, boolean supportsShort,
-                    boolean supportsInt, boolean supportsLong, boolean supportsFloat, boolean supportsDouble) throws InteropException {
+                    boolean supportsInt, boolean supportsLong, boolean supportsBigInteger, boolean supportsFloat, boolean supportsDouble) throws InteropException {
 
         Object expectedValue = v;
 
@@ -257,6 +283,7 @@ public class InteropDefaultsTest extends InteropLibraryBaseTest {
         assertEquals(supportsShort, l.fitsInShort(v));
         assertEquals(supportsInt, l.fitsInInt(v));
         assertEquals(supportsLong, l.fitsInLong(v));
+        assertEquals(supportsBigInteger, l.fitsInBigInteger(v));
         assertEquals(supportsFloat, l.fitsInFloat(v));
         assertEquals(supportsDouble, l.fitsInDouble(v));
 
@@ -279,6 +306,17 @@ public class InteropDefaultsTest extends InteropLibraryBaseTest {
             assertEquals(((Number) expectedValue).longValue(), l.asLong(v));
         } else {
             assertUnsupported(() -> l.asLong(v));
+        }
+        if (supportsBigInteger) {
+            if (expectedValue instanceof Float || expectedValue instanceof Double) {
+                assertEquals(new BigDecimal(((Number) expectedValue).doubleValue()).toBigIntegerExact(), l.asBigInteger(v));
+            } else if (expectedValue instanceof BigInteger) {
+                assertEquals((BigInteger) expectedValue, l.asBigInteger(v));
+            } else {
+                assertEquals(BigInteger.valueOf(((Number) expectedValue).longValue()), l.asBigInteger(v));
+            }
+        } else {
+            assertUnsupported(() -> l.asBigInteger(v));
         }
         if (supportsFloat) {
             assertEquals(((Number) expectedValue).floatValue(), l.asFloat(v), 0);

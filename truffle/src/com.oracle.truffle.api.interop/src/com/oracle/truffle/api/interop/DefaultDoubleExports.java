@@ -40,6 +40,9 @@
  */
 package com.oracle.truffle.api.interop;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
+
 import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
 import com.oracle.truffle.api.TruffleLanguage;
 import com.oracle.truffle.api.library.ExportLibrary;
@@ -74,8 +77,23 @@ final class DefaultDoubleExports {
     @ExportMessage
     static boolean fitsInLong(Double receiver) {
         double d = receiver;
-        long l = (long) d;
-        return NumberUtils.inSafeIntegerRange(d) && !NumberUtils.isNegativeZero(d) && l == d;
+        if (!NumberUtils.isNegativeZero(d)) {
+            long l = (long) d;
+            if (l != Long.MAX_VALUE && l == d) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @ExportMessage // TODO TruffleBoundary?
+    static boolean fitsInBigInteger(Double receiver) {
+        try {
+            asBigInteger(receiver);
+            return true;
+        } catch (UnsupportedMessageException e) {
+            return false;
+        }
     }
 
     @ExportMessage
@@ -118,11 +136,22 @@ final class DefaultDoubleExports {
     @ExportMessage
     static long asLong(Double receiver) throws UnsupportedMessageException {
         double d = receiver;
-        if (NumberUtils.inSafeIntegerRange(d) && !NumberUtils.isNegativeZero(d)) {
+        if (!NumberUtils.isNegativeZero(d)) {
             long l = (long) d;
-            if (l == d) {
+            if (l != Long.MAX_VALUE && l == d) {
                 return l;
             }
+        }
+        throw UnsupportedMessageException.create();
+    }
+
+    @ExportMessage // TODO TruffleBoundary?
+    static BigInteger asBigInteger(Double receiver) throws UnsupportedMessageException {
+        try {
+            if (Double.isFinite(receiver)) {
+                return new BigDecimal(receiver).toBigIntegerExact();
+            }
+        } catch (ArithmeticException e) {
         }
         throw UnsupportedMessageException.create();
     }
