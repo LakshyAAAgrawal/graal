@@ -127,6 +127,28 @@ public class NativeImageHeapGraph {
             }
         }
     }
+
+    public void printObjectReferencesReport(PrintWriter out) {
+        for (ObjectInfo info : heap.getObjects()) {
+            out.printf("%s | %d\n", info.getObjectClass().getName(), info.getIdentityHashCode());
+            for (Object reason : info.getAllReasons()) {
+                out.printf("|--%s\n", formatReason(reason));
+            }
+        }
+    }
+
+    public String formatReason(Object reason) {
+        if (reason instanceof String) {
+            return reason.toString();
+        } else if (reason instanceof ObjectInfo) {
+            ObjectInfo r = (ObjectInfo) reason;
+            return String.format("%s | %d", r.getObjectClass().getName(), r.getIdentityHashCode());
+        } else if (reason instanceof HostedField) {
+            HostedField r = (HostedField) reason;
+            return String.format("%s", r.getDeclaringClass().getName());
+        }
+    }
+
     private static float MB(long bytes) {
         return bytes / (1048576f);
     }
