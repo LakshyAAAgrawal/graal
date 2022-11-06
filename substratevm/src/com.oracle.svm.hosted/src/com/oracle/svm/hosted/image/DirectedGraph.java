@@ -43,7 +43,7 @@ public class DirectedGraph<Node> {
         }
         return nodeData.nodeId;
     }
-sorted(Comparator.comparing(ConnectedComponentInfo::getSizeInBytes).reversed
+
     public boolean isRoot(Node node) {
         return isRoot.getOrDefault(node, false);
     }

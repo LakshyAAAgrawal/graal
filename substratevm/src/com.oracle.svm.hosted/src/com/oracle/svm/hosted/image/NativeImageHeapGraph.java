@@ -1,11 +1,14 @@
 package com.oracle.svm.hosted.image;
 
 import java.io.PrintWriter;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -14,25 +17,24 @@ import org.graalvm.collections.Pair;
 import org.graalvm.compiler.core.phases.StaticFieldsAccessGatherPhase;
 
 import com.oracle.svm.core.image.ImageHeapPartition;
+import com.oracle.svm.core.util.VMError;
 import com.oracle.svm.hosted.image.NativeImageHeap.ObjectInfo;
 import com.oracle.svm.hosted.meta.HostedField;
 
 public class NativeImageHeapGraph {
-    private final StaticFieldsAccessGatherPhase.StaticFieldsAccessRecords accessRecords;
-    private final Set<HostedField> hostedFieldsReasons;
-    private final Set<String> stringReasons;
     private final NativeImageHeap heap;
     private final long totalHeapSizeInBytes;
     private final List<ConnectedComponentInfo> connectedComponents;
 
     public NativeImageHeapGraph(StaticFieldsAccessGatherPhase.StaticFieldsAccessRecords accessRecords, NativeImageHeap heap, long imageHeapSize) {
+        System.out.println("Constructing Native Image Heap Graph");
+        long start = System.currentTimeMillis();
         this.heap = heap;
-        this.accessRecords = accessRecords;
         this.totalHeapSizeInBytes = imageHeapSize;
-        this.hostedFieldsReasons = Collections.newSetFromMap(new IdentityHashMap<>());
-        this.stringReasons = Collections.newSetFromMap(new IdentityHashMap<>());
         DirectedGraph<ObjectInfo> graph = computeImageHeapObjectGraph(this.heap);
         this.connectedComponents = computeConnectedComponents(graph, this.heap);
+        long end = System.currentTimeMillis();
+        System.out.printf("Elapsed seconds: %.4f", (end - start)/1000.0f);
     }
 
     private DirectedGraph<ObjectInfo> computeImageHeapObjectGraph(NativeImageHeap heap) {
@@ -49,9 +51,10 @@ public class NativeImageHeapGraph {
                 ObjectInfo parent = (ObjectInfo) reason;
                 graph.connect(parent, childObjectInfo);
             } else if (reason instanceof String) {
-                this.stringReasons.add((String) reason);
             } else if (reason instanceof HostedField) {
-                this.hostedFieldsReasons.add((HostedField) reason);
+            } else {
+                VMError.shouldNotReachHere(String.format("ObjectInfo %s root not handled.",
+                        reason.getClass().getSimpleName()));
             }
         }
     }
@@ -76,31 +79,74 @@ public class NativeImageHeapGraph {
                 .parallel()
                 .map(root -> DirectedGraph.DFSVisitor.create(graph).dfs(root))
                 .map(root -> new ConnectedComponentInfo(root, heap))
-                .filter(c -> c.getSizeInMB() >= NativeImageHeapGraphFeature.Options.NativeImageHeapGraphComponentMBSizeThreshold.getValue())
-                .filter(c -> c.shouldReportThisComponent(objectFilterPatterns, reasonFilterPatterns))
+//                .filter(c -> c.getSizeInMB() >= NativeImageHeapGraphFeature.Options.NativeImageHeapGraphComponentMBSizeThreshold.getValue())
+//                .filter(c -> c.shouldReportThisComponent(objectFilterPatterns, reasonFilterPatterns))
                 .sorted(Comparator.comparing(ConnectedComponentInfo::getSizeInBytes).reversed())
                 .limit(limitNumOfComponents)
                 .collect(Collectors.toList());
     }
 
+    private static int getReasonRank(Object reason) {
+        if (reason instanceof String) return 0;
+        if (reason instanceof HostedField) return 1;
+        if (reason instanceof ObjectInfo) return 2;
+
+        VMError.shouldNotReachHere(String.format("Root %s not handled.", reason.getClass().getSimpleName()));
+        return 0;
+    }
+
+    private static final Comparator<Object> REASON_COMPARATOR = (o1, o2) -> {
+        if (o1 instanceof String && o2 instanceof String) {
+            return String.CASE_INSENSITIVE_ORDER.compare((String) o1, (String) o2);
+        }
+        if (o1 instanceof HostedField && o2 instanceof HostedField) {
+            HostedField h1 = (HostedField) o1;
+            HostedField h2 = (HostedField) o2;
+            return h1.getDeclaringClass().getName().compareTo(h2.getDeclaringClass().getName());
+        }
+        return getReasonRank(o1) - getReasonRank(o2);
+    };
+
+    private static long sumObjectSizes(List<ObjectInfo> objectInfos) {
+        long sum = 0;
+        for (ObjectInfo objectInfo : objectInfos) {
+            sum += objectInfo.getSize();
+        }
+        return sum;
+    }
+
     public void printComponentsReport(PrintWriter out) {
-        out.println("============Native Image Heap Object Graph Stats============");
+        out.println("============Native Image Heap Object Graph Report============");
         out.printf("Total Heap Size: %.3fMB\n", MB(this.totalHeapSizeInBytes));
         out.printf("Total number of objects in the heap: %d\n", this.heap.getObjects().size());
+        out.printf("Total number of connected components in the heap: %d\n", this.connectedComponents.size());
         out.println();
-        out.println("===========Connected components in NativeImageHeap===========");
-        out.println("ObjectName | SizeMB | FractionOfTotalHeapSize | IdentityHashCode");
-        for (ConnectedComponentInfo connectedComponent : connectedComponents) {
+        out.println("===========Connected components in the Native Image Heap===========");
+
+        HashSet<String> uniqueReasons = new HashSet<>();
+        for (int i = 0; i < connectedComponents.size(); i++) {
+            int componentId = i + 1;
+            ConnectedComponentInfo connectedComponent = connectedComponents.get(i);
             float sizeInMb = connectedComponent.getSizeInMB();
-            ObjectInfo rootObject = connectedComponent.getRoot();
-            float componentFractionSizeOfTotalHeap = (float) connectedComponent.getSizeInBytes() / this.totalHeapSizeInBytes;
-            out.printf("%s | %.4fMB | %.4f | %d\n", rootObject.getObjectClass().getName(),
-                    sizeInMb, componentFractionSizeOfTotalHeap, rootObject.getIdentityHashCode());
-            for (Object reason : rootObject.getAllReasons()) {
-                if (reason instanceof String) {
-                    out.printf("|--%s\n", reason);
-                }
-            }
+            float percentageOfTotalHeapSize = 100.0f * (float) connectedComponent.getSizeInBytes() / this.totalHeapSizeInBytes;
+            out.printf("Component=%d | Size=%.4fMB | Percentage of total image heap size=%.4f%%\n", componentId, sizeInMb, percentageOfTotalHeapSize);
+
+            out.printf("%12s %s\n", "Size", "Method");
+           connectedComponent.getMethodAccessPoints()
+                    .values()
+                    .stream()
+                    .sorted(Comparator.comparing((EntryPoint<String> e) -> e.getSizeInBytes()).reversed())
+                    .forEach(o -> out.printf("%12d %s\n", o.getSizeInBytes(), o.getRoot()));
+
+//           connectedComponent.getReasons().stream()
+//                    .sorted(REASON_COMPARATOR)
+//                    .map(this::formatReason)
+//                    .forEach(out::println);
+
+            HeapHistogram objectHistogram = new HeapHistogram(out);
+            connectedComponent.getObjects().forEach(o -> objectHistogram.add(o, o.getSize()));
+            objectHistogram.printHeadings("");
+            objectHistogram.print();
             out.println();
         }
     }
@@ -146,6 +192,9 @@ public class NativeImageHeapGraph {
         } else if (reason instanceof HostedField) {
             HostedField r = (HostedField) reason;
             return String.format("%s", r.getDeclaringClass().getName());
+        } else {
+            VMError.shouldNotReachHere("Unhandled type");
+            return "Unhandled type in: NativeImageHeapGraph.formatReason([root]):179";
         }
     }
 
@@ -153,22 +202,66 @@ public class NativeImageHeapGraph {
         return bytes / (1048576f);
     }
 
+    private static class EntryPoint<Root> implements Comparable<EntryPoint<Root>> {
+        private final Root root;
+        private long sizeInBytes;
+
+        public EntryPoint(Root root) {
+            this.root = root;
+        }
+
+        public void addObject(ObjectInfo objectInfo) {
+            this.sizeInBytes += objectInfo.getSize();
+        }
+        public Root getRoot() { return root; }
+        public long getSizeInBytes() { return sizeInBytes; }
+
+        @Override
+        public int compareTo(EntryPoint<Root> o) {
+            return Long.compare(this.sizeInBytes, o.sizeInBytes);
+        }
+    }
+
     private static class ConnectedComponentInfo {
         private final List<ObjectInfo> objects;
         private final long size;
         private final List<ImageHeapPartition> partitions;
         private final long[] componentSizeInPartition;
+        private final IdentityHashMap<HostedField, EntryPoint<HostedField>> hostedFieldEntryPoints;
+        private final IdentityHashMap<String, EntryPoint<String>> methodEntryPoints;
+        private final Set<Object> reasons;
 
         public ConnectedComponentInfo(List<ObjectInfo> objects, NativeImageHeap heap) {
             this.objects = objects;
             this.size = computeComponentSize(objects);
             this.partitions = Arrays.asList(heap.getLayouter().getPartitions());
             this.componentSizeInPartition = new long[partitions.size()];
+            this.hostedFieldEntryPoints = new IdentityHashMap<>();
+            this.methodEntryPoints = new IdentityHashMap<>();
+            this.reasons = Collections.newSetFromMap(new IdentityHashMap<>());
             for (ObjectInfo object : objects) {
+                this.reasons.addAll(object.getAllReasons());
                 ImageHeapPartition partition = object.getPartition();
                 int index = this.partitions.indexOf(partition);
                 componentSizeInPartition[index] += object.getSize();
+                for (Object reason : object.getAllReasons()) {
+                    if (reason instanceof HostedField) {
+                        HostedField field = (HostedField) reason;
+                        this.hostedFieldEntryPoints.computeIfAbsent(field, EntryPoint::new).addObject(object);
+                    } else if (reason instanceof String) {
+                        this.methodEntryPoints.computeIfAbsent((String) reason, EntryPoint::new).addObject(object);
+                    }
+                }
             }
+        }
+        public Set<Object> getReasons() { return reasons; }
+
+        public Map<HostedField, EntryPoint<HostedField>> getHostedFieldEntryPoints() {
+            return hostedFieldEntryPoints;
+        }
+
+        public Map<String, EntryPoint<String>> getMethodAccessPoints() {
+            return methodEntryPoints;
         }
 
         private static long computeComponentSize(List<ObjectInfo> objects) {

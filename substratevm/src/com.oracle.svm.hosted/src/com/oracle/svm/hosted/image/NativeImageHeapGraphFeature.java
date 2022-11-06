@@ -22,6 +22,11 @@ import java.util.stream.Collectors;
 @AutomaticallyRegisteredFeature
 public class NativeImageHeapGraphFeature implements InternalFeature {
     public static class Options {
+
+        // TODO(mspasic): change to false before committing the final version
+        @Option(help = {}, type = OptionType.Debug)
+        public static final HostedOptionKey<Boolean> DumpNativeImageHeapReport = new HostedOptionKey<>(true);
+
         @Option(help = {}, type = OptionType.Debug)
         public static final HostedOptionKey<Integer> NativeImageHeapGraphNumOfComponents = new HostedOptionKey<>(16);
 
@@ -40,9 +45,8 @@ public class NativeImageHeapGraphFeature implements InternalFeature {
     private StaticFieldsAccessGatherPhase.StaticFieldsAccessRecords accessRecords;
 
     @Override
-    public void afterRegistration(AfterRegistrationAccess access) {
-        testGraph();
-        testConnectedComponents();
+    public boolean isInConfiguration(IsInConfigurationAccess access) {
+        return Options.DumpNativeImageHeapReport.getValue();
     }
 
     @Override
@@ -72,44 +76,5 @@ public class NativeImageHeapGraphFeature implements InternalFeature {
 
         path = Path.of(SubstrateOptions.reportsPath(), "image_heap_connected_components_in_partitions_" + access.getImagePath().getFileName().toString() + ".txt");
         ReportUtils.report("Native image heap object distribution between partitions", path, graph::printComponentsImagePartitionHistogramReport);
-    }
-
-    private static void testGraph() {
-        DirectedGraph<Integer> graph = new DirectedGraph<>();
-        Integer a = 0;
-        Integer b = 1;
-        Integer c = 2;
-        Integer d = 3;
-        graph.connect(a, b);
-        graph.connect(a, c);
-        graph.connect(b, d);
-        graph.connect(c, d);
-
-        VMError.guarantee(graph.isRoot(a));
-        VMError.guarantee(!graph.isRoot(b));
-        VMError.guarantee(!graph.isRoot(c));
-        VMError.guarantee(!graph.isRoot(d));
-    }
-
-    private static void testConnectedComponents() {
-        DirectedGraph<Integer> graph = new DirectedGraph<>();
-        Integer a = 0;
-        Integer b = 1;
-        Integer c = 2;
-        Integer d = 3;
-        graph.connect(a, b);
-        graph.connect(a, c);
-        graph.connect(b, d);
-        graph.connect(c, d);
-
-        Integer e = 4;
-        Integer f = 5;
-        Integer g = 6;
-        graph.connect(e, f);
-        graph.addNode(g);
-        List<ArrayList<Integer>> collections = graph.getRoots().stream()
-                        .map(root -> DirectedGraph.DFSVisitor.create(graph).dfs(root))
-                        .collect(Collectors.toList());
-        VMError.guarantee(collections.size() == 3);
     }
 }
