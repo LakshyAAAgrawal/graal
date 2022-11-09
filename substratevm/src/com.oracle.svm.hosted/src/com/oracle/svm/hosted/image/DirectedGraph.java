@@ -1,11 +1,13 @@
 package com.oracle.svm.hosted.image;
 
 import java.io.PrintStream;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.Set;
 import java.util.Stack;
 
@@ -13,8 +15,8 @@ import java.util.Stack;
     Directed graph of Objects in the NativeImageHeap.
     Objects are enumerated as they are being added, starting from 0
  */
-public class DirectedGraph<Node> {
-    class NodeData {
+public final class DirectedGraph<Node> {
+    private class NodeData {
         public Set<Node> neighbours;
         public int nodeId = 0;
 
@@ -24,9 +26,9 @@ public class DirectedGraph<Node> {
         }
     }
 
-    protected final IdentityHashMap<Node, NodeData> nodes = new IdentityHashMap<>();
-    protected final IdentityHashMap<Node, Boolean> isRoot = new IdentityHashMap<>();
-    protected long numberOfEdges = 0;
+    private final IdentityHashMap<Node, NodeData> nodes = new IdentityHashMap<>();
+    private final IdentityHashMap<Node, Boolean> isRoot = new IdentityHashMap<>();
+    private long numberOfEdges = 0;
 
     public NodeData addNode(Node a) {
         if (nodes.containsKey(a)) {
@@ -82,15 +84,15 @@ public class DirectedGraph<Node> {
         return roots;
     }
 
-    protected void dumpGraphBegin(PrintStream out) {
+    private void dumpGraphBegin(PrintStream out) {
         out.println("digraph G0 {");
     }
 
-    protected void dumpEdge(PrintStream out, long nodeIdFrom, long nodeIdTo) {
+    private void dumpEdge(PrintStream out, long nodeIdFrom, long nodeIdTo) {
         out.printf("%d -> %d\n", nodeIdFrom, nodeIdTo);
     }
 
-    protected void dumpGraphEnd(PrintStream out) {
+    private void dumpGraphEnd(PrintStream out) {
         out.println("}");
     }
 
@@ -108,66 +110,75 @@ public class DirectedGraph<Node> {
         dumpGraphEnd(out);
     }
 
-    public static class DFSVisitor<Node> {
-        private DirectedGraph<Node> graph;
-
-        public DFSVisitor(DirectedGraph<Node> graph) {
-            this.graph = graph;
-        }
-
-        public static <T> DFSVisitor<T> create(DirectedGraph<T> graph) {
-            return new DFSVisitor<>(graph);
-        }
-
-        public ArrayList<Node> dfs(Node start) {
-            ArrayList<Node> visitOrder = new ArrayList<>();
-            Stack<Node> stack = new Stack<>();
-            boolean[] visited = new boolean[graph.getNumberOfNodes()];
-            stack.add(start);
-            while (!stack.isEmpty()) {
-                Node currentNode = stack.pop();
-                int currentNodeId = graph.getNodeId(currentNode);
-                if (visited[currentNodeId]) {
-                    continue;
-                }
-                visited[currentNodeId] = true;
-                visitOrder.add(currentNode);
-                for (Node neighbour : graph.getNeighbours(currentNode)) {
-                    if (!visited[graph.getNodeId(neighbour)]) {
-                        stack.push(neighbour);
-                    }
+    public OnVisit<Node> dfs(Node start, OnVisit<Node> onVisit) {
+        Stack<VisitorState<Node>> stack = new Stack<>();
+        boolean[] visited = new boolean[getNumberOfNodes()];
+        stack.add(new VisitorState<>(null, start, 0));
+        while (!stack.isEmpty()) {
+            VisitorState<Node> state = stack.pop();
+            int currentNodeId = getNodeId(state.currentNode);
+            if (visited[currentNodeId]) {
+                continue;
+            }
+            visited[currentNodeId] = true;
+            onVisit.accept(this, state);
+            for (Node neighbour : getNeighbours(state.currentNode)) {
+                if (!visited[getNodeId(neighbour)]) {
+                    stack.push(new VisitorState<>(state.currentNode, neighbour, state.level + 1));
                 }
             }
-            return visitOrder;
         }
+        return onVisit;
+    }
 
-        public List<List<Node>> dfs(ArrayList<Node> roots) {
-            Stack<Node> stack = new Stack<>();
-            boolean[] visited = new boolean[graph.getNumberOfNodes()];
-            ArrayList<List<Node>> runs = new ArrayList<>();
-            for (Node start : roots) {
-                ArrayList<Node> visitOrder = new ArrayList<>();
-                if (visited[graph.getNodeId(start)]) {
-                    continue;
-                }
-                stack.add(start);
-                while (!stack.isEmpty()) {
-                    Node currentNode = stack.pop();
-                    int currentNodeId = graph.getNodeId(currentNode);
-                    if (visited[currentNodeId]) {
-                        continue;
-                    }
-                    visited[currentNodeId] = true;
-                    visitOrder.add(currentNode);
-                    for (Node neighbour : graph.getNeighbours(currentNode)) {
-                        if (!visited[graph.getNodeId(neighbour)]) {
-                            stack.push(neighbour);
-                        }
-                    }
-                }
-                runs.add(visitOrder);
+    public OnVisit<Node> bfs(Node start, OnVisit<Node> onVisit) {
+        Queue<VisitorState<Node>> queue = new ArrayDeque<>();
+        boolean[] visited = new boolean[getNumberOfNodes()];
+        queue.add(new VisitorState<>(null, start, 0));
+        while (!queue.isEmpty()) {
+            VisitorState<Node> state = queue.poll();
+            int currentNodeId = getNodeId(state.currentNode);
+            if (visited[currentNodeId]) {
+                continue;
             }
-            return runs;
+            visited[currentNodeId] = true;
+            onVisit.accept(this, state);
+            for (Node neighbour : getNeighbours(state.currentNode)) {
+                if (!visited[getNodeId(neighbour)]) {
+                    queue.offer(new VisitorState<>(state.currentNode, neighbour, state.level + 1));
+                }
+            }
+        }
+        return onVisit;
+    }
+
+    interface OnVisit<Node> {
+        void accept(DirectedGraph<Node> graph, VisitorState<Node> state);
+    }
+
+    public final static class VisitorState<Node> {
+        public final Node parentNode;
+        public final Node currentNode;
+        public final int level;
+
+        VisitorState(Node parent, Node current, int level) {
+            this.parentNode = parent;
+            this.currentNode = current;
+            this.level = level;
         }
     }
+
+    public final static class ListCollector<Node> implements OnVisit<Node> {
+        private final List<Node> nodes = new ArrayList<>();
+
+        @Override
+        public void accept(DirectedGraph<Node> graph, VisitorState<Node> state) {
+            nodes.add(state.currentNode);
+        }
+
+        public List<Node> getNodes() {
+            return nodes;
+        }
+    }
+
 }
