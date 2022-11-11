@@ -2,10 +2,8 @@ package com.oracle.svm.hosted.image;
 
 import java.io.PrintStream;
 import java.util.ArrayDeque;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
@@ -34,6 +32,7 @@ public final class DirectedGraph<Node> {
         if (nodes.containsKey(a)) {
             return nodes.get(a);
         }
+
         isRoot.put(a, true);
         return nodes.computeIfAbsent(a, node -> new NodeData(nodes.size()));
     }
@@ -110,7 +109,7 @@ public final class DirectedGraph<Node> {
         dumpGraphEnd(out);
     }
 
-    public OnVisit<Node> dfs(Node start, OnVisit<Node> onVisit) {
+    public NodeVisitor<Node> dfs(Node start, NodeVisitor<Node> nodeVisitor) {
         Stack<VisitorState<Node>> stack = new Stack<>();
         boolean[] visited = new boolean[getNumberOfNodes()];
         stack.add(new VisitorState<>(null, start, 0));
@@ -121,17 +120,20 @@ public final class DirectedGraph<Node> {
                 continue;
             }
             visited[currentNodeId] = true;
-            onVisit.accept(this, state);
+            nodeVisitor.accept(this, state);
+            if (nodeVisitor.shouldTerminateVisit()) {
+                return nodeVisitor;
+            }
             for (Node neighbour : getNeighbours(state.currentNode)) {
                 if (!visited[getNodeId(neighbour)]) {
                     stack.push(new VisitorState<>(state.currentNode, neighbour, state.level + 1));
                 }
             }
         }
-        return onVisit;
+        return nodeVisitor;
     }
 
-    public OnVisit<Node> bfs(Node start, OnVisit<Node> onVisit) {
+    public NodeVisitor<Node> bfs(Node start, NodeVisitor<Node> nodeVisitor) {
         Queue<VisitorState<Node>> queue = new ArrayDeque<>();
         boolean[] visited = new boolean[getNumberOfNodes()];
         queue.add(new VisitorState<>(null, start, 0));
@@ -142,18 +144,22 @@ public final class DirectedGraph<Node> {
                 continue;
             }
             visited[currentNodeId] = true;
-            onVisit.accept(this, state);
+            nodeVisitor.accept(this, state);
+            if (nodeVisitor.shouldTerminateVisit()) {
+                return nodeVisitor;
+            }
             for (Node neighbour : getNeighbours(state.currentNode)) {
                 if (!visited[getNodeId(neighbour)]) {
                     queue.offer(new VisitorState<>(state.currentNode, neighbour, state.level + 1));
                 }
             }
         }
-        return onVisit;
+        return nodeVisitor;
     }
 
-    interface OnVisit<Node> {
+    interface NodeVisitor<Node> {
         void accept(DirectedGraph<Node> graph, VisitorState<Node> state);
+        default boolean shouldTerminateVisit() { return false; }
     }
 
     public final static class VisitorState<Node> {
@@ -168,17 +174,6 @@ public final class DirectedGraph<Node> {
         }
     }
 
-    public final static class ListCollector<Node> implements OnVisit<Node> {
-        private final List<Node> nodes = new ArrayList<>();
 
-        @Override
-        public void accept(DirectedGraph<Node> graph, VisitorState<Node> state) {
-            nodes.add(state.currentNode);
-        }
-
-        public List<Node> getNodes() {
-            return nodes;
-        }
-    }
 
 }

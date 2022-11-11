@@ -63,21 +63,57 @@ public class NativeImageHeapGraph {
         }
     }
 
-    private static List<ConnectedComponent> computeConnectedComponents(DirectedGraph<ObjectInfo> graph, NativeImageHeap heap) {
-        List<String> rootFilterPatterns = Arrays.stream(
-                        NativeImageHeapGraphFeature.Options.NativeImageHeapGraphRootFilter.getValue().split(","))
-                        .map(String::strip)
-                        .collect(Collectors.toList());
+    private final static class ListCollector<Node> implements DirectedGraph.NodeVisitor<Node> {
+        private final List<Node> nodes = new ArrayList<>();
+        @Override
+        public void accept(DirectedGraph<Node> graph, DirectedGraph.VisitorState<Node> state) {
+            nodes.add(state.currentNode);
+        }
+        public List<Node> getNodes() {
+            return nodes;
+        }
+    }
 
+    public final static class CollectNLevels<Node> implements DirectedGraph.NodeVisitor<Node> {
+        private final ArrayList<Node> levels = new ArrayList<>();
+        private final int firstNLevels;
+        private boolean shouldTerminate = false;
+
+        public CollectNLevels(int firstNLevels) {
+            this.firstNLevels = firstNLevels;
+        }
+
+        ArrayList<Node> getNodes() {
+            return levels;
+        }
+
+        @Override
+        public void accept(DirectedGraph<Node> graph, DirectedGraph.VisitorState<Node> state) {
+            if (state.level == firstNLevels) {
+                shouldTerminate = true;
+                return;
+            }
+//            if (levels.size() == state.level) {
+//                levels.add(new ArrayList<>());
+//            }
+            levels.add(state.currentNode);
+        }
+
+        @Override
+        public boolean shouldTerminateVisit() {
+            return shouldTerminate;
+        }
+    }
+
+    private static List<ConnectedComponent> computeConnectedComponents(DirectedGraph<ObjectInfo> graph, NativeImageHeap heap) {
         int limitNumOfComponents = NativeImageHeapGraphFeature.Options.NativeImageHeapGraphNumOfComponents.getValue();
         limitNumOfComponents = limitNumOfComponents > 0 ? Math.min(limitNumOfComponents, graph.getRoots().size()) : graph.getRoots().size();
-
         // Compute connected components by running dfs visit from all the root nodes
         return graph.getRoots().stream()
                         .parallel()
-                        .map(root -> graph.dfs(root, new DirectedGraph.ListCollector<>()))
-                        .map(visited -> new ConnectedComponent(((DirectedGraph.ListCollector<ObjectInfo>) visited).getNodes(), heap))
-                        .filter(c -> c.shouldReportThisComponent(rootFilterPatterns))
+                        .map(root -> graph.bfs(root, new ListCollector<>()))
+                        .map(visited -> new ConnectedComponent(((ListCollector<ObjectInfo>) visited).getNodes(), heap))
+                        .filter(ConnectedComponent::shouldReportThisComponent)
                         .sorted(Comparator.comparing(ConnectedComponent::getSizeInBytes).reversed())
                         .limit(limitNumOfComponents)
                         .collect(Collectors.toList());
@@ -90,7 +126,6 @@ public class NativeImageHeapGraph {
         out.printf("Total number of connected components in the heap: %d\n", this.connectedComponents.size());
         out.println();
         out.println("===========Connected components in the Native Image Heap===========");
-
         for (int i = 0; i < connectedComponents.size(); i++) {
             int componentId = i + 1;
             ConnectedComponent connectedComponent = connectedComponents.get(i);
@@ -107,13 +142,8 @@ public class NativeImageHeapGraph {
             objectHistogram.print();
             out.println();
 
-            out.printf("Identity hash code - object class\n");
-            for (ObjectInfo e : connectedComponent.getObjects()) {
-                out.printf("%d - %s\n", e.getIdentityHashCode(), e.getObjectClass().getName());
-                for (Object reason : e.getAllReasons()) {
-                    out.print("--");
-                    out.println(formatReason(reason));
-                }
+            for (ObjectInfo object : connectedComponent.getObjects()) {
+                out.printf("%s : %s\n", object.getObjectClass().getSimpleName(), object.getObject() != null ? object.getObject().toString() : "null");
             }
         }
     }
@@ -123,16 +153,31 @@ public class NativeImageHeapGraph {
         List<ObjectInfo> objects = heap.getObjects().stream().sorted(Comparator.comparingLong(ObjectInfo::getSize).reversed()).collect(Collectors.toList());
         for (ObjectInfo objectInfo : objects) {
             out.printf("%d - %s\n", objectInfo.getSize(), objectInfo.getClazz());
-            if (objectInfo.getAllReasons().size() == 1 && objectInfo.getMainReason() instanceof ObjectInfo) {
-                continue;
-            }
             for (Object reason : objectInfo.getAllReasons()) {
-                if (!(reason instanceof ObjectInfo)) {
+                if ((reason instanceof ObjectInfo)) {
                     out.printf("|--%s\n", reason);
                 }
             }
             out.println();
         }
+    }
+
+    public void printRoots(PrintWriter out) {
+        for (ObjectInfo root : getObjectGraph().getRoots()) {
+            out.println(root);
+        }
+    }
+
+    public void printConnectedComponentToGraphVizDotFormat(PrintWriter out) {
+        out.println("digraph {");
+        for (ConnectedComponent connectedComponent : connectedComponents) {
+            for (ObjectInfo objectInfo : connectedComponent.getObjects()) {
+                for (Object reason : objectInfo.getAllReasons()) {
+                    out.printf("%s -> %d;\n", formatReasonForDotFile(reason), objectInfo.getIdentityHashCode());
+                }
+            }
+        }
+        out.println("}");
     }
 
     public void printComponentsImagePartitionHistogramReport(PrintWriter out) {
@@ -167,7 +212,22 @@ public class NativeImageHeapGraph {
         }
     }
 
-    public String formatReason(Object reason) {
+    private static String formatReasonForDotFile(Object reason) {
+        if (reason instanceof String) {
+            return String.format("\"%s\"", reason);
+        } else if (reason instanceof ObjectInfo) {
+            ObjectInfo r = (ObjectInfo) reason;
+            return String.format("%d", r.getIdentityHashCode());
+        } else if (reason instanceof HostedField) {
+            HostedField r = (HostedField) reason;
+            return String.format("\"%s\"", r.getDeclaringClass().getName());
+        } else {
+            VMError.shouldNotReachHere("Unhandled type");
+            return "Unhandled type in: NativeImageHeapGraph.formatReason([root]):179";
+        }
+    }
+
+    private static String formatReason(Object reason) {
         if (reason instanceof String) {
             return String.format("Method: %s", reason);
         } else if (reason instanceof ObjectInfo) {
@@ -185,6 +245,9 @@ public class NativeImageHeapGraph {
     private static float MB(long bytes) {
         return bytes / (1048576f);
     }
+
+    private final String[] suppressed = {
+    };
 
     private final static class ConnectedComponent {
         private final List<ObjectInfo> objects;
@@ -213,6 +276,7 @@ public class NativeImageHeapGraph {
         public List<String> getEntryPoints() {
             SortedSet<String> methodEntryPoints = new TreeSet<>();
             SortedSet<String> hostedFieldsEntryPoints = new TreeSet<>();
+            SortedSet<String> objectInfos = new TreeSet<>();
             for (ObjectInfo object : objects) {
                 for (Object reason : object.getAllReasons()) {
                     if (reason instanceof String) {
@@ -220,12 +284,15 @@ public class NativeImageHeapGraph {
                     } else if (reason instanceof HostedField) {
                         HostedField field = (HostedField) reason;
                         hostedFieldsEntryPoints.add(String.format("%s.%s of type %s", field.getDeclaringClass(), field.getName(), field.getType()));
+                    } else if (reason instanceof ObjectInfo) {
+                        objectInfos.add(reason.toString());
                     }
                 }
             }
             ArrayList<String> result = new ArrayList<>(methodEntryPoints.size() + hostedFieldsEntryPoints.size());
             result.addAll(methodEntryPoints);
             result.addAll(hostedFieldsEntryPoints);
+            result.addAll(objectInfos);
             return result;
         }
 
@@ -242,7 +309,7 @@ public class NativeImageHeapGraph {
         }
 
         public float getSizeInMB() {
-            return size / (1024.f * 1024.f);
+            return MB(size );
         }
 
         public List<ObjectInfo> getObjects() {
@@ -253,12 +320,18 @@ public class NativeImageHeapGraph {
             return objects.get(0);
         }
 
-        public boolean shouldReportThisComponent(List<String> rootFilterPattern) {
-            for (String pattern : rootFilterPattern) {
+        public boolean shouldReportThisComponent() {
+            List<String> rootFilterPatterns = Arrays.stream(
+                            NativeImageHeapGraphFeature.Options.NativeImageHeapGraphRootFilter.getValue().split(","))
+                    .map(String::strip)
+                    .collect(Collectors.toList());
+
+            for (String pattern : rootFilterPatterns) {
                 boolean shouldReport = getRoot().getAllReasons()
                                 .stream()
-                                .filter(r -> r instanceof String)
-                                .anyMatch(r -> ((String)r).contains(pattern));
+//                                .filter(r -> r instanceof String)
+                                .filter(r -> r instanceof String || r instanceof HostedField)
+                                .anyMatch(r -> r.toString().contains(pattern));
                 if (shouldReport) {
                     return true;
                 }
