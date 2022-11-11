@@ -31,6 +31,9 @@ public class NativeImageHeapGraphFeature implements InternalFeature {
         public static final HostedOptionKey<String> NativeImageHeapGraphRootFilter = new HostedOptionKey<>("");
 
         @Option(help = {}, type = OptionType.Debug)
+        public static final HostedOptionKey<String> ImageHeapObjectTypeFilter = new HostedOptionKey<>("");
+
+        @Option(help = {}, type = OptionType.Debug)
         public static final HostedOptionKey<Float> NativeImageHeapGraphComponentMBSizeThreshold = new HostedOptionKey<>(0.0f);
     }
 

@@ -37,6 +37,7 @@ public class NativeImageHeapGraph {
         this.totalHeapSizeInBytes = imageHeapSize;
         this.objectGraph = computeImageHeapObjectGraph(this.heap);
         this.connectedComponents = computeConnectedComponents(objectGraph, this.heap);
+
         long end = System.currentTimeMillis();
         System.out.printf("Elapsed seconds: %.4f\n", (end - start) / 1000.0f);
     }
@@ -149,22 +150,19 @@ public class NativeImageHeapGraph {
     }
 
     public void printObjectsReport(PrintWriter out) {
-        out.println("Object in the native image heap");
-        List<ObjectInfo> objects = heap.getObjects().stream().sorted(Comparator.comparingLong(ObjectInfo::getSize).reversed()).collect(Collectors.toList());
+        String[] filters = NativeImageHeapGraphFeature.Options.ImageHeapObjectTypeFilter.getValue().split(",");
+        List<ObjectInfo> objects = heap.getObjects().stream()
+                .filter(o -> Arrays.stream(filters).anyMatch(f -> o.getObject().getClass().getName().contains(f)))
+                .sorted(Comparator.comparingLong(ObjectInfo::getSize).reversed())
+                .collect(Collectors.toList());
         for (ObjectInfo objectInfo : objects) {
-            out.printf("%d - %s\n", objectInfo.getSize(), objectInfo.getClazz());
-            for (Object reason : objectInfo.getAllReasons()) {
-                if ((reason instanceof ObjectInfo)) {
-                    out.printf("|--%s\n", reason);
-                }
-            }
-            out.println();
+            out.println(objectInfo.referenceTraceToRoot());
         }
     }
 
     public void printRoots(PrintWriter out) {
         for (ObjectInfo root : getObjectGraph().getRoots()) {
-            out.println(root);
+            out.println(root.referenceTraceToRoot());
         }
     }
 

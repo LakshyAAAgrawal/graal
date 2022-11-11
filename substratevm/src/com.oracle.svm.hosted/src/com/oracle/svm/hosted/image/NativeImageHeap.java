@@ -860,6 +860,18 @@ public final class NativeImageHeap implements ImageHeap {
             }
             return result.toString();
         }
+
+        public String referenceTraceToRoot() {
+            StringBuilder result = new StringBuilder(getObject().getClass().getName()).append(" -> ");
+            Object cur = getMainReason();
+            while (cur instanceof ObjectInfo) {
+                ObjectInfo curObjectInfo = (ObjectInfo)cur;
+                result.append(curObjectInfo.getObject().getClass().getName()).append(" -> ");
+                cur = curObjectInfo.getMainReason();
+            }
+            result.append(cur);
+            return result.toString();
+        }
     }
 
     protected static final class Phase {
