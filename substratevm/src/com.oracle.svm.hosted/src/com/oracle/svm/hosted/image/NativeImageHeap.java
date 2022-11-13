@@ -29,6 +29,7 @@ import static com.oracle.svm.core.util.VMError.shouldNotReachHere;
 import java.lang.reflect.Array;
 import java.lang.reflect.Modifier;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -710,7 +711,6 @@ public final class NativeImageHeap implements ImageHeap {
 
     private final int imageHeapOffsetInAddressSpace = Heap.getHeap().getImageHeapOffsetInAddressSpace();
 
-
     public final class ObjectInfo implements ImageHeapObject {
         private final JavaConstant constant;
         private final HostedClass clazz;
@@ -861,17 +861,17 @@ public final class NativeImageHeap implements ImageHeap {
             return result.toString();
         }
 
-        public String referenceTraceToRoot() {
-            StringBuilder result = new StringBuilder(getObject().getClass().getName()).append(" -> ");
-            Object cur = getMainReason();
-            while (cur instanceof ObjectInfo) {
-                ObjectInfo curObjectInfo = (ObjectInfo)cur;
-                result.append(curObjectInfo.getObject().getClass().getName()).append(" -> ");
-                cur = curObjectInfo.getMainReason();
+        public List<ObjectInfo> upwardsReferenceChain() {
+            ArrayList<ObjectInfo> references = new ArrayList<>();
+            ObjectInfo cur = this;
+            references.add(cur);
+            while (cur.getMainReason() instanceof ObjectInfo) {
+                cur = (ObjectInfo) cur.getMainReason();
+                references.add(cur);
             }
-            result.append(cur);
-            return result.toString();
+            return references;
         }
+
     }
 
     protected static final class Phase {

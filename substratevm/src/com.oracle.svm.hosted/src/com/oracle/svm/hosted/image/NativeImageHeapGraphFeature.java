@@ -7,14 +7,11 @@ import com.oracle.svm.core.feature.InternalFeature;
 import com.oracle.svm.core.option.HostedOptionKey;
 import com.oracle.svm.core.util.VMError;
 import com.oracle.svm.hosted.FeatureImpl;
-import org.graalvm.compiler.core.phases.StaticFieldsAccessGatherPhase;
 import org.graalvm.compiler.options.Option;
 import org.graalvm.compiler.options.OptionType;
-import org.graalvm.nativeimage.ImageSingletons;
 
 import java.io.File;
 import java.nio.file.Path;
-import java.util.ArrayList;
 
 @AutomaticallyRegisteredFeature
 public class NativeImageHeapGraphFeature implements InternalFeature {
@@ -47,6 +44,8 @@ public class NativeImageHeapGraphFeature implements InternalFeature {
 
     @Override
     public void afterHeapLayout(AfterHeapLayoutAccess a) {
+        testConnectedComponents();;
+        testGraph();
         FeatureImpl.AfterHeapLayoutAccessImpl access = (FeatureImpl.AfterHeapLayoutAccessImpl) a;
         this.heap = access.getHeap();
     }
@@ -62,24 +61,24 @@ public class NativeImageHeapGraphFeature implements InternalFeature {
         NativeImageHeapGraph graph = new NativeImageHeapGraph(heap, this.image.getImageHeapSize());
         {
             String reportName = "image_heap_connected_components_" + access.getImagePath().getFileName().toString() + ".txt";
-            Path path = Path.of(SubstrateOptions.reportsPath(), reportName);
-            ReportUtils.report(reportName, path, graph::printComponentsReport);
+            File file = ReportUtils.reportFile(SubstrateOptions.reportsPath(), reportName, "txt");
+            ReportUtils.report(reportName, file.toPath(), graph::printComponentsReport);
         }
-        {
-            String reportName = "image_heap_roots_" + access.getImagePath().getFileName().toString() + ".txt";
-            Path path = Path.of(SubstrateOptions.reportsPath(), reportName);
-            ReportUtils.report(reportName, path, graph::printRoots);
-        }
+//        {
+//            String reportName = "image_heap_roots_" + access.getImagePath().getFileName().toString() + ".txt";
+//            Path path = Path.of(SubstrateOptions.reportsPath(), reportName);
+//            ReportUtils.report(reportName, path, graph::printRoots);
+//        }
+//
+//        {
+//            String reportName = "image_heap_objects_" + access.getImagePath().getFileName().toString() + ".txt";
+//            Path path = Path.of(SubstrateOptions.reportsPath(), reportName);
+//            ReportUtils.report(reportName, path, graph::printObjectsReport);
 
         {
-            String reportName = "image_heap_objects_" + access.getImagePath().getFileName().toString() + ".txt";
-            Path path = Path.of(SubstrateOptions.reportsPath(), reportName);
-            ReportUtils.report(reportName, path, graph::printObjectsReport);
-        }
-        {
-            String reportName = "image_heap_connected_component_graph_" + access.getImagePath().getFileName().toString();
+            String reportName = "image_heap_reference_graph_" + access.getImagePath().getFileName().toString();
             File file = ReportUtils.reportFile(SubstrateOptions.reportsPath(), reportName, "dot");
-            ReportUtils.report(reportName, file.toPath(), graph::printConnectedComponentToGraphVizDotFormat);
+            ReportUtils.report(reportName, file.toPath(), graph::printReferenceChainGraph);
         }
     }
     private static void testGraph() {
@@ -118,5 +117,6 @@ public class NativeImageHeapGraphFeature implements InternalFeature {
 
         NativeImageHeapGraph.CollectNLevels<Integer> objectCollectNLevels = new NativeImageHeapGraph.CollectNLevels<>(2);
         graph.bfs(a, objectCollectNLevels);
+        VMError.guarantee(objectCollectNLevels.getNodes().size() == 3);
     }
 }

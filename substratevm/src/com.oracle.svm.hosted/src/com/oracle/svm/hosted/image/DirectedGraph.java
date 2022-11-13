@@ -2,8 +2,10 @@ package com.oracle.svm.hosted.image;
 
 import java.io.PrintStream;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
@@ -15,12 +17,20 @@ import java.util.Stack;
  */
 public final class DirectedGraph<Node> {
     private class NodeData {
-        public Set<Node> neighbours;
-        public int nodeId = 0;
+        private final Set<Node> neighbours;
+        private final int nodeId;
 
         public NodeData(int nodeId) {
             this.neighbours = Collections.newSetFromMap(new IdentityHashMap<>());
             this.nodeId = nodeId;
+        }
+
+        public Set<Node> getNeighbours() {
+            return neighbours;
+        }
+
+        public int getNodeId() {
+            return nodeId;
         }
     }
 
@@ -32,7 +42,6 @@ public final class DirectedGraph<Node> {
         if (nodes.containsKey(a)) {
             return nodes.get(a);
         }
-
         isRoot.put(a, true);
         return nodes.computeIfAbsent(a, node -> new NodeData(nodes.size()));
     }
@@ -49,20 +58,38 @@ public final class DirectedGraph<Node> {
         return isRoot.getOrDefault(node, false);
     }
 
+    /*
+        Returns true if the edge from a to b didn't exist prior to calling connect.
+        Adds nodes a and b if they didn't exist prior to calling connect.
+     */
     public boolean connect(Node a, Node b) {
         if (a == null || b == null)
             return false;
         NodeData nodeData = addNode(a);
-        numberOfEdges += nodeData.neighbours.add(b) ? 1 : 0;
         addNode(b);
+        boolean connectionExisted = !nodeData.neighbours.add(b);
+        numberOfEdges += !connectionExisted ? 1 : 0;
         isRoot.putIfAbsent(a, true);
         isRoot.put(b, false);
-        return true;
+        return connectionExisted;
     }
 
     public Set<Node> getNeighbours(Node a) {
-        Set<Node> neighbours = nodes.get(a).neighbours;
-        return neighbours != null ? neighbours : Collections.emptySet();
+        NodeData nodeData = nodes.get(a);
+        if (nodeData == null) {
+            return Collections.emptySet();
+        }
+        return nodeData.neighbours;
+    }
+
+    public List<Node> getLeaves() {
+        List<Node> result = new ArrayList<>();
+        for (Map.Entry<Node, NodeData> entry : this.nodes.entrySet())  {
+            if (entry.getValue().getNeighbours().size() == 0) {
+               result.add(entry.getKey());
+            }
+        }
+        return result;
     }
 
     public int getNumberOfNodes() {
@@ -109,7 +136,7 @@ public final class DirectedGraph<Node> {
         dumpGraphEnd(out);
     }
 
-    public NodeVisitor<Node> dfs(Node start, NodeVisitor<Node> nodeVisitor) {
+    public <T extends NodeVisitor<Node>> T dfs(Node start, T nodeVisitor) {
         Stack<VisitorState<Node>> stack = new Stack<>();
         boolean[] visited = new boolean[getNumberOfNodes()];
         stack.add(new VisitorState<>(null, start, 0));
