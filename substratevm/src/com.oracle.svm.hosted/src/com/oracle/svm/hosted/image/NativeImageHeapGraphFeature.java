@@ -22,7 +22,7 @@ public class NativeImageHeapGraphFeature implements InternalFeature {
         public static final HostedOptionKey<Boolean> DumpNativeImageHeapReport = new HostedOptionKey<>(true);
 
         @Option(help = {}, type = OptionType.Debug)
-        public static final HostedOptionKey<Integer> NativeImageHeapGraphNumOfComponents = new HostedOptionKey<>(16);
+        public static final HostedOptionKey<Integer> NativeImageHeapGraphNumOfComponents = new HostedOptionKey<>(0);
 
         @Option(help = {}, type = OptionType.Debug)
         public static final HostedOptionKey<String> NativeImageHeapGraphRootFilter = new HostedOptionKey<>("");
@@ -60,21 +60,15 @@ public class NativeImageHeapGraphFeature implements InternalFeature {
         FeatureImpl.AfterImageWriteAccessImpl access = (FeatureImpl.AfterImageWriteAccessImpl) a;
         NativeImageHeapGraph graph = new NativeImageHeapGraph(heap, this.image.getImageHeapSize());
         {
-            String reportName = "image_heap_connected_components_" + access.getImagePath().getFileName().toString() + ".txt";
+            String reportName = "image_heap_connected_components_" + access.getImagePath().getFileName().toString();
             File file = ReportUtils.reportFile(SubstrateOptions.reportsPath(), reportName, "txt");
             ReportUtils.report(reportName, file.toPath(), graph::printComponentsReport);
         }
-//        {
-//            String reportName = "image_heap_roots_" + access.getImagePath().getFileName().toString() + ".txt";
-//            Path path = Path.of(SubstrateOptions.reportsPath(), reportName);
-//            ReportUtils.report(reportName, path, graph::printRoots);
-//        }
-//
-//        {
-//            String reportName = "image_heap_objects_" + access.getImagePath().getFileName().toString() + ".txt";
-//            Path path = Path.of(SubstrateOptions.reportsPath(), reportName);
-//            ReportUtils.report(reportName, path, graph::printObjectsReport);
-
+        {
+            String reportName = "image_heap_entry_points_" + access.getImagePath().getFileName().toString();
+            File file = ReportUtils.reportFile(SubstrateOptions.reportsPath(), reportName, "txt");
+            ReportUtils.report(reportName, file.toPath(), graph::printEntryPointsReport);
+        }
         {
             String reportName = "image_heap_reference_graph_" + access.getImagePath().getFileName().toString();
             File file = ReportUtils.reportFile(SubstrateOptions.reportsPath(), reportName, "dot");
