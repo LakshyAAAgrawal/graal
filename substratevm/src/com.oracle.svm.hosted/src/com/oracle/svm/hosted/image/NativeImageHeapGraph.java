@@ -5,9 +5,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -17,6 +19,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import com.oracle.graal.pointsto.BigBang;
+import com.oracle.svm.core.heap.Heap;
 import com.oracle.svm.core.hub.DynamicHub;
 import com.oracle.svm.core.hub.DynamicHubCompanion;
 import jdk.vm.ci.meta.JavaConstant;
@@ -32,11 +35,75 @@ public class NativeImageHeapGraph {
     private final NativeImageHeap heap;
     private final long totalHeapSizeInBytes;
     private final List<ConnectedComponent> connectedComponents;
-    private final DirectedGraph<ObjectInfo> objectGraph;
+    private final DirectedGraph<HeapGraphEntry> objectGraph;
     private final BigBang bb;
 
-    public DirectedGraph<ObjectInfo> getObjectGraph() {
+    public DirectedGraph<HeapGraphEntry> getObjectGraph() {
         return objectGraph;
+    }
+
+    private static final class HeapGraphEntry {
+        private Object object;
+
+        @Override
+        public boolean equals(Object o) {
+            if (!(o instanceof HeapGraphEntry)) {
+                return false;
+            }
+            HeapGraphEntry other = (HeapGraphEntry) o;
+            if (isObjectInfo() && other.isObjectInfo()) {
+                return asObjectInfo().getIdentityHashCode() == other.asObjectInfo().getIdentityHashCode();
+            } else if (isStringReason() && other.isStringReason()) {
+                return asStringReason().equals(other.asStringReason());
+            } else if (isHostedFiledReason() && other.isHostedFiledReason()) {
+                return asHostedFieldReason().equals(other.asHostedFieldReason());
+            }
+            return false;
+        }
+
+        @Override
+        public int hashCode() {
+            if (isObjectInfo()) return asObjectInfo().getIdentityHashCode();
+            else if (isStringReason()) return asStringReason().hashCode();
+            else if (isHostedFiledReason()) return asHostedFieldReason().hashCode();
+            else return 0;
+        }
+
+        public HeapGraphEntry (Object object) {
+            this.object = object;
+        }
+
+        public ObjectInfo asObjectInfo() {
+            return (ObjectInfo) object;
+        }
+
+        public boolean isStringReason() {
+            return object instanceof String;
+        }
+
+        public boolean isHostedFiledReason() {
+            return object instanceof HostedField;
+        }
+
+        public String asStringReason() {
+            return (String)object;
+        }
+
+        public HostedField asHostedFieldReason() {
+            return (HostedField) object;
+        }
+
+        public boolean isObjectInfo() {
+            return object instanceof ObjectInfo;
+        }
+        public boolean isRoot() {
+            return object instanceof String || object instanceof HostedField;
+        }
+
+        @Override
+        public String toString() {
+            return object.toString();
+        }
     }
 
     public NativeImageHeapGraph(NativeImageHeap heap, long imageHeapSize) {
@@ -51,25 +118,17 @@ public class NativeImageHeapGraph {
         System.out.printf("Elapsed seconds: %.4f\n", (end - start) / 1000.0f);
     }
 
-    private DirectedGraph<ObjectInfo> computeImageHeapObjectGraph(NativeImageHeap heap) {
-        DirectedGraph<ObjectInfo> graph = new DirectedGraph<>();
+    private DirectedGraph<HeapGraphEntry> computeImageHeapObjectGraph(NativeImageHeap heap) {
+        DirectedGraph<HeapGraphEntry> graph = new DirectedGraph<>();
         for (ObjectInfo objectInfo : heap.getObjects()) {
             connectChildToParentObjects(graph, objectInfo);
         }
         return graph;
     }
 
-    private static void connectChildToParentObjects(DirectedGraph<ObjectInfo> graph, ObjectInfo childObjectInfo) {
+    private static void connectChildToParentObjects(DirectedGraph<HeapGraphEntry> graph, ObjectInfo childObjectInfo) {
         for (Object reason : childObjectInfo.getAllReasons()) {
-            if (reason instanceof ObjectInfo) {
-                ObjectInfo parent = (ObjectInfo) reason;
-                graph.connect(parent, childObjectInfo);
-            } else if (reason instanceof String) {
-            } else if (reason instanceof HostedField) {
-            } else {
-                VMError.shouldNotReachHere(String.format("ObjectInfo %s root not handled.",
-                                reason.getClass().getSimpleName()));
-            }
+           graph.connect(new HeapGraphEntry(reason), new HeapGraphEntry(childObjectInfo));
         }
     }
 
@@ -126,13 +185,12 @@ public class NativeImageHeapGraph {
         }
     }
 
-    private static List<ConnectedComponent> computeConnectedComponents(DirectedGraph<ObjectInfo> graph, NativeImageHeap heap) {
+    private static List<ConnectedComponent> computeConnectedComponents(DirectedGraph<HeapGraphEntry> graph, NativeImageHeap heap) {
         int limitNumOfComponents = NativeImageHeapGraphFeature.Options.NativeImageHeapGraphNumOfComponents.getValue();
         limitNumOfComponents = limitNumOfComponents > 0 ? Math.min(limitNumOfComponents, graph.getRoots().size()) : graph.getRoots().size();
         // Compute connected components by running dfs visit from all the root nodes
 
         return graph.getRoots().stream()
-                        .filter(NativeImageHeapGraph::mainReasonFilter)
                         .parallel()
                         .map(root -> graph.dfs(root, new ListCollector<>()))
                         .map(visited -> new ConnectedComponent(visited.getNodes(), heap))
@@ -183,10 +241,16 @@ public class NativeImageHeapGraph {
         out.println("============Native Image Heap Object Graph Report============");
         out.printf("Total Heap Size: %.3fMB\n", MB(this.totalHeapSizeInBytes));
         out.printf("Total number of objects in the heap: %d\n", this.heap.getObjects().size());
-        out.printf("Total number of connected components in the heap: %d\n", this.connectedComponents.size());
+        out.printf("Number of reported components connected components in the heap: %d\n", this.connectedComponents.size());
         out.println();
         out.println("===========Connected components in the Native Image Heap===========");
-
+//
+//        out.println("Roots Begin");
+//        objectGraph.getRoots().stream().filter(HeapGraphEntry::isStringReason)
+//                .map(HeapGraphEntry::asStringReason)
+//                .sorted()
+//                .forEach(out::println);
+//        out.println("Roots End");
         for (int i = 0; i < connectedComponents.size(); i++) {
             int componentId = i + 1;
             ConnectedComponent connectedComponent = connectedComponents.get(i);
@@ -194,11 +258,10 @@ public class NativeImageHeapGraph {
             float percentageOfTotalHeapSize = 100.0f * (float) connectedComponent.getSizeInBytes() /
                     this.totalHeapSizeInBytes;
             out.printf("Component=%d | Size=%.4fMB | Percentage of total image heap size=%.4f%%\n", componentId, sizeInMb, percentageOfTotalHeapSize);
-
-            connectedComponent.getRoot().getAllReasons().forEach(out::println);
-
+            out.print("Root method entry point: ");
+            out.println(connectedComponent.getRoot());
             HeapHistogram objectHistogram = new HeapHistogram(out);
-            connectedComponent.getObjects().forEach(o -> objectHistogram.add(o, o.getSize()));
+            connectedComponent.getObjects().stream().filter(HeapGraphEntry::isObjectInfo).map(HeapGraphEntry::asObjectInfo).forEach(o -> objectHistogram.add(o, o.getSize()));
             objectHistogram.printHeadings("");
             objectHistogram.print();
             out.println();
@@ -295,39 +358,21 @@ public class NativeImageHeapGraph {
     public void printObjectsReport(PrintWriter out) {
         String[] filters = NativeImageHeapGraphFeature.Options.ImageHeapObjectTypeFilter.getValue().split(",");
         String[] rootFilters = NativeImageHeapGraphFeature.Options.NativeImageHeapGraphRootFilter.getValue().split(",");
-        List<ObjectInfo> objects = heap.getObjects().stream()
-                        // TODO(mspasic): check if it's the graph first
-                        // TODO(mspasic): this is wrong, I want to print the tree from object to
-                        // root
-                        .filter(o -> this.objectGraph.getNeighbours(o).size() == 1)
-// .filter(o -> Arrays.stream(rootFilters).anyMatch(f -> o.getMainReason().toString().contains(f)))
-                        .filter(o -> Arrays.stream(filters).anyMatch(f -> o.getObject().getClass().getName().contains(f)))
-                        .filter(NativeImageHeapGraph::suppressInternalObjects)
-                        .sorted(Comparator.comparingLong(ObjectInfo::getSize).reversed())
-                        .collect(Collectors.toList());
-
-        for (ObjectInfo objectInfo : objects) {
-            out.println(makeReferenceChainString(bb, objectInfo, NativeImageHeapGraph::suppressInternalObjects));
-            out.println(makeReferenceChainString(bb, objectInfo, null));
-        }
-    }
-
-    public void printRoots(PrintWriter out) {
-        for (ObjectInfo root : getObjectGraph().getRoots()) {
-            out.println(makeReferenceChainString(bb, root, null));
-        }
-    }
-
-    public void printConnectedComponentToGraphVizDotFormat(PrintWriter out) {
-        out.println("digraph {");
-        for (ConnectedComponent connectedComponent : connectedComponents) {
-            for (ObjectInfo objectInfo : connectedComponent.getObjects()) {
-                for (Object reason : objectInfo.getAllReasons()) {
-                    out.printf("%s -> %d;\n", formatReasonForDotFile(reason), objectInfo.getIdentityHashCode());
-                }
-            }
-        }
-        out.println("}");
+//        List<ObjectInfo> objects = heap.getObjects().stream()
+//                        // TODO(mspasic): check if it's the graph first
+//                        // TODO(mspasic): this is wrong, I want to print the tree from object to
+//                        // root
+//                        .filter(o -> this.objectGraph.getNeighbours(o).size() == 1)
+//// .filter(o -> Arrays.stream(rootFilters).anyMatch(f -> o.getMainReason().toString().contains(f)))
+//                        .filter(o -> Arrays.stream(filters).anyMatch(f -> o.getObject().getClass().getName().contains(f)))
+//                        .filter(NativeImageHeapGraph::suppressInternalObjects)
+//                        .sorted(Comparator.comparingLong(ObjectInfo::getSize).reversed())
+//                        .collect(Collectors.toList());
+//
+//        for (ObjectInfo objectInfo : objects) {
+//            out.println(makeReferenceChainString(bb, objectInfo, NativeImageHeapGraph::suppressInternalObjects));
+//            out.println(makeReferenceChainString(bb, objectInfo, null));
+//        }
     }
 
     public void printComponentsImagePartitionHistogramReport(PrintWriter out) {
@@ -337,9 +382,9 @@ public class NativeImageHeapGraph {
         out.println("F - Total space taken by component inside a partition");
         for (ConnectedComponent connectedComponentInfo : connectedComponents) {
             out.printf("\n=========Object: %s - | %fMB | IdentityHashCode: %d=========\n",
-                            connectedComponentInfo.getRoot().getObjectClass(),
+                            connectedComponentInfo.getRoot().getClass(),
                             connectedComponentInfo.getSizeInMB(),
-                            connectedComponentInfo.getRoot().getIdentityHashCode());
+                            12);
             out.printf("%-20s %-26s\n", "Partition", "CSp/PS=F");
             for (Pair<ImageHeapPartition, Long> partitionInfo : connectedComponentInfo.getHistogram()) {
                 ImageHeapPartition partition = partitionInfo.getLeft();
@@ -400,22 +445,24 @@ public class NativeImageHeapGraph {
     };
 
     private final static class ConnectedComponent {
-        private final List<ObjectInfo> objects;
+        private final List<HeapGraphEntry> objects;
         private final long size;
         private final List<ImageHeapPartition> partitions;
         private final long[] componentSizeInPartition;
         private final Set<Object> reasons;
 
-        public ConnectedComponent(List<ObjectInfo> objects, NativeImageHeap heap) {
+        public ConnectedComponent(List<HeapGraphEntry> objects, NativeImageHeap heap) {
             this.objects = objects;
             this.size = computeComponentSize(objects);
             this.partitions = Arrays.asList(heap.getLayouter().getPartitions());
             this.componentSizeInPartition = new long[partitions.size()];
-            this.reasons = Collections.newSetFromMap(new IdentityHashMap<>());
-            for (ObjectInfo object : objects) {
-                ImageHeapPartition partition = object.getPartition();
-                int index = this.partitions.indexOf(partition);
-                componentSizeInPartition[index] += object.getSize();
+            this.reasons = Collections.newSetFromMap(new HashMap<>());
+            for (Object object : objects) {
+                if (object instanceof ObjectInfo) {
+                    ImageHeapPartition partition = ((ObjectInfo) object).getPartition();
+                    int index = this.partitions.indexOf(partition);
+                    componentSizeInPartition[index] += ((ObjectInfo) object).getSize();
+                }
             }
         }
 
@@ -423,33 +470,12 @@ public class NativeImageHeapGraph {
             return reasons;
         }
 
-        public List<String> getEntryPoints() {
-            SortedSet<String> methodEntryPoints = new TreeSet<>();
-            SortedSet<String> hostedFieldsEntryPoints = new TreeSet<>();
-            SortedSet<String> objectInfos = new TreeSet<>();
-            for (ObjectInfo object : objects) {
-                for (Object reason : object.getAllReasons()) {
-                    if (reason instanceof String) {
-                        methodEntryPoints.add((String) reason);
-                    } else if (reason instanceof HostedField) {
-                        HostedField field = (HostedField) reason;
-                        hostedFieldsEntryPoints.add(String.format("%s.%s of type %s", field.getDeclaringClass(), field.getName(), field.getType()));
-                    } else if (reason instanceof ObjectInfo) {
-                        objectInfos.add(reason.toString());
-                    }
-                }
-            }
-            ArrayList<String> result = new ArrayList<>(methodEntryPoints.size() + hostedFieldsEntryPoints.size());
-            result.addAll(methodEntryPoints);
-            result.addAll(hostedFieldsEntryPoints);
-            result.addAll(objectInfos);
-            return result;
-        }
-
-        private static long computeComponentSize(List<ObjectInfo> objects) {
+        private static long computeComponentSize(List<HeapGraphEntry> objects) {
             long totalSize = 0L;
-            for (ObjectInfo o : objects) {
-                totalSize += o.getSize();
+            for (HeapGraphEntry o : objects) {
+                if (o.isObjectInfo()) {
+                    totalSize += o.asObjectInfo().getSize();
+                }
             }
             return totalSize;
         }
@@ -462,11 +488,11 @@ public class NativeImageHeapGraph {
             return MB(size);
         }
 
-        public List<ObjectInfo> getObjects() {
+        public List<HeapGraphEntry> getObjects() {
             return objects;
         }
 
-        public ObjectInfo getRoot() {
+        public Object getRoot() {
             return objects.get(0);
         }
 
@@ -477,7 +503,7 @@ public class NativeImageHeapGraph {
                             .collect(Collectors.toList());
 
             for (String pattern : rootFilterPatterns) {
-                boolean shouldReport = getRoot().getMainReason().toString().contains(pattern);
+                boolean shouldReport = getRoot().toString().contains(pattern);
                 if (shouldReport) {
                     return true;
                 }

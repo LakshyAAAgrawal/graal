@@ -4,7 +4,7 @@ import java.io.PrintStream;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.IdentityHashMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
@@ -21,7 +21,7 @@ public final class DirectedGraph<Node> {
         private final int nodeId;
 
         public NodeData(int nodeId) {
-            this.neighbours = Collections.newSetFromMap(new IdentityHashMap<>());
+            this.neighbours = Collections.newSetFromMap(new HashMap<>());
             this.nodeId = nodeId;
         }
 
@@ -34,8 +34,8 @@ public final class DirectedGraph<Node> {
         }
     }
 
-    private final IdentityHashMap<Node, NodeData> nodes = new IdentityHashMap<>();
-    private final IdentityHashMap<Node, Boolean> isRoot = new IdentityHashMap<>();
+    private final HashMap<Node, NodeData> nodes = new HashMap<>();
+    private final HashMap<Node, Boolean> isRoot = new HashMap<>();
     private long numberOfEdges = 0;
 
     public NodeData addNode(Node a) {
@@ -101,7 +101,7 @@ public final class DirectedGraph<Node> {
     }
 
     public Set<Node> getRoots() {
-        Set<Node> roots = Collections.newSetFromMap(new IdentityHashMap<>());
+        Set<Node> roots = Collections.newSetFromMap(new HashMap<>());
         for (Map.Entry<Node, Boolean> kv : isRoot.entrySet()) {
             if (kv.getValue()) {
                 roots.add(kv.getKey());
