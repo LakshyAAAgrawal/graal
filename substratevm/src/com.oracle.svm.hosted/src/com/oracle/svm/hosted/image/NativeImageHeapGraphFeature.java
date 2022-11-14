@@ -11,7 +11,6 @@ import org.graalvm.compiler.options.Option;
 import org.graalvm.compiler.options.OptionType;
 
 import java.io.File;
-import java.nio.file.Path;
 
 @AutomaticallyRegisteredFeature
 public class NativeImageHeapGraphFeature implements InternalFeature {
@@ -62,7 +61,7 @@ public class NativeImageHeapGraphFeature implements InternalFeature {
         {
             String reportName = "image_heap_connected_components_" + access.getImagePath().getFileName().toString();
             File file = ReportUtils.reportFile(SubstrateOptions.reportsPath(), reportName, "txt");
-            ReportUtils.report(reportName, file.toPath(), graph::printComponentsReport);
+            ReportUtils.report(reportName, file.toPath(), graph::printConnectedComponentsHistogram);
         }
         {
             String reportName = "image_heap_entry_points_" + access.getImagePath().getFileName().toString();

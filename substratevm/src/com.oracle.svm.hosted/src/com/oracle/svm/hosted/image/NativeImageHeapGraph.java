@@ -10,12 +10,11 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
+import java.util.Stack;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 import com.oracle.graal.pointsto.BigBang;
 import com.oracle.svm.core.hub.DynamicHub;
@@ -28,6 +27,7 @@ import com.oracle.svm.core.image.ImageHeapPartition;
 import com.oracle.svm.core.util.VMError;
 import com.oracle.svm.hosted.image.NativeImageHeap.ObjectInfo;
 import com.oracle.svm.hosted.meta.HostedField;
+import org.graalvm.shadowed.org.jcodings.util.Hash;
 
 public class NativeImageHeapGraph {
     private final NativeImageHeap heap;
@@ -139,7 +139,7 @@ public class NativeImageHeapGraph {
         private final List<Node> nodes = new ArrayList<>();
 
         @Override
-        public void accept(DirectedGraph<Node> graph, DirectedGraph.VisitorState<Node> state) {
+        public void accept(AbstractGraph<Node> graph, DirectedGraph.VisitorState<Node> state) {
             nodes.add(state.currentNode);
         }
 
@@ -162,7 +162,7 @@ public class NativeImageHeapGraph {
         }
 
         @Override
-        public void accept(DirectedGraph<Node> graph, DirectedGraph.VisitorState<Node> state) {
+        public void accept(AbstractGraph<Node> graph, DirectedGraph.VisitorState<Node> state) {
             if (state.level == firstNLevels) {
                 shouldTerminate = true;
                 return;
@@ -179,11 +179,11 @@ public class NativeImageHeapGraph {
         }
     }
 
-    private static final class DirectedGraphCollector implements DirectedGraph.NodeVisitor<ObjectInfo> {
+    private static final class DirectedGraphCollector implements AbstractGraph.NodeVisitor<ObjectInfo> {
         public final DirectedGraph<ObjectInfo> subgraph = new DirectedGraph<>();
 
         @Override
-        public void accept(DirectedGraph<ObjectInfo> graph, DirectedGraph.VisitorState<ObjectInfo> state) {
+        public void accept(AbstractGraph<ObjectInfo> graph, DirectedGraph.VisitorState<ObjectInfo> state) {
             subgraph.connect(state.parentNode, state.currentNode);
         }
     }
@@ -194,7 +194,6 @@ public class NativeImageHeapGraph {
         // Compute connected components by running dfs visit from all the root nodes
 
         return graph.getRoots().stream()
-                        .parallel()
                         .map(root -> graph.dfs(root, new ListCollector<>()))
                         .map(visited -> new ConnectedComponent(visited.getNodes(), heap))
                         .filter(ConnectedComponent::shouldReportThisComponent)
@@ -240,7 +239,33 @@ public class NativeImageHeapGraph {
         out.println("}");
     }
 
-    public void printComponentsReport(PrintWriter out) {
+    private static final class ColoringVisitor implements AbstractGraph.NodeVisitor<ObjectInfo> {
+        public HashMap<ObjectInfo, Integer> colors = new HashMap<>();
+        private int color = 0;
+
+        @Override
+        public void accept(AbstractGraph<ObjectInfo> graph, DirectedGraph.VisitorState<ObjectInfo> state) {
+
+        }
+
+        @Override
+        public boolean shouldVisit(ObjectInfo objectInfo) {
+            return true;
+        }
+    }
+
+    public void printConnectedComponentsReport(PrintWriter out) {
+        DirectedGraph<ObjectInfo> graph = new DirectedGraph<>();
+        for (ObjectInfo info : this.heap.getObjects()) {
+            for (Object reason : info.getAllReasons()) {
+                if (reason instanceof ObjectInfo)
+                    graph.connect((ObjectInfo) reason, info);
+            }
+        }
+
+    }
+
+    public void printConnectedComponentsHistogram(PrintWriter out) {
         out.println("============Native Image Heap Object Graph Report============");
         out.printf("Total Heap Size: %.3fMB\n", MB(this.totalHeapSizeInBytes));
         out.printf("Total number of objects in the heap: %d\n", this.heap.getObjects().size());
@@ -271,8 +296,8 @@ public class NativeImageHeapGraph {
     }
 
     private static final String[] suppressObjectsOfType = {
-                    DynamicHub.class.toString(),
-                    DynamicHubCompanion.class.toString(),
+            DynamicHub.class.toString(),
+            DynamicHubCompanion.class.toString(),
     };
 
     private static boolean suppressInternalObjects(ObjectInfo info) {
@@ -563,5 +588,22 @@ public class NativeImageHeapGraph {
                             .mapToObj(i -> Pair.create(partitions.get(i), componentSizeInPartition[i]))
                             .collect(Collectors.toList());
         }
+    }
+}
+
+class BiDirectionalImageHeapGraph {
+    private HashMap<ObjectInfo, Set<ObjectInfo>> neighbours = new HashMap<>();
+
+    public void connect(ObjectInfo a, ObjectInfo b) {
+        neighbours.computeIfAbsent(a, k -> new HashSet<>()).add(b);
+        neighbours.computeIfAbsent(b, k -> new HashSet<>()).add(a);
+    }
+
+    public Set<ObjectInfo> getNodes() {
+        return neighbours.keySet();
+    }
+
+    public Set<ObjectInfo> getNeighbours(ObjectInfo key) {
+        return neighbours.get(key);
     }
 }
