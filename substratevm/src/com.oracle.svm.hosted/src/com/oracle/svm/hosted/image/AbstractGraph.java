@@ -25,9 +25,11 @@ public abstract class AbstractGraph<Node> {
     }
 
     protected long numberOfEdges = 0;
+
     public boolean inGraph(Node n) {
         return nodes.containsKey(n);
     }
+
     protected void doConnect(Map<Node, NodeData> nodes, Node from, Node to) {
         if (from == null || to == null)
             return;
@@ -47,6 +49,10 @@ public abstract class AbstractGraph<Node> {
             }
         }
         return roots;
+    }
+
+    public void addNode(Node a) {
+        addNode(nodes, a);
     }
 
     protected NodeData addNode(Map<Node, NodeData> nodes, Node a) {
