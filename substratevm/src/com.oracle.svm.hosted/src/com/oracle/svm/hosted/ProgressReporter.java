@@ -31,7 +31,6 @@ import java.io.PrintWriter;
 import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
 import java.lang.management.OperatingSystemMXBean;
-import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -95,7 +94,6 @@ import com.oracle.svm.hosted.image.NativeImageHeap.ObjectInfo;
 import com.oracle.svm.hosted.meta.HostedMetaAccess;
 import com.oracle.svm.hosted.reflect.ReflectionHostedSupport;
 import com.oracle.svm.util.ImageBuildStatistics;
-import com.oracle.svm.util.ReflectionUtil;
 
 import jdk.vm.ci.meta.JavaConstant;
 
@@ -566,6 +564,8 @@ public class ProgressReporter {
         final TwoColumnPrinter p = new TwoColumnPrinter();
         p.l().yellowBold().a(CODE_BREAKDOWN_TITLE).jumpToMiddle().a(HEAP_BREAKDOWN_TITLE).reset().flushln();
 
+        int maxLength = ProgressReporter.CHARACTERS_PER_LINE / 2 - 10;
+
         long printedCodeBytes = 0;
         long printedHeapBytes = 0;
         long printedCodeItems = 0;
@@ -574,7 +574,7 @@ public class ProgressReporter {
             String codeSizePart = "";
             if (packagesBySize.hasNext()) {
                 Entry<String, Long> e = packagesBySize.next();
-                String className = Utils.truncateClassOrPackageName(e.getKey());
+                String className = Utils.truncateClassOrPackageName(e.getKey(), maxLength);
                 codeSizePart = String.format("%9s %s", Utils.bytesToHuman(e.getValue()), className);
                 printedCodeBytes += e.getValue();
                 printedCodeItems++;
@@ -586,7 +586,7 @@ public class ProgressReporter {
                 String className = e.getKey();
                 // Do not truncate special breakdown items, they can contain links.
                 if (!className.startsWith(BREAKDOWN_BYTE_ARRAY_PREFIX)) {
-                    className = Utils.truncateClassOrPackageName(className);
+                    className = Utils.truncateClassOrPackageName(className, maxLength);
                 }
                 heapSizePart = String.format("%9s %s", Utils.bytesToHuman(e.getValue()), className);
                 printedHeapBytes += e.getValue();
@@ -742,101 +742,6 @@ public class ProgressReporter {
 
     private static void resetANSIMode() {
         NativeImageSystemIOWrappers.singleton().getOut().print(ANSI.RESET);
-    }
-
-    private static class Utils {
-        private static final double MILLIS_TO_SECONDS = 1000d;
-        private static final double NANOS_TO_SECONDS = 1000d * 1000d * 1000d;
-        private static final double BYTES_TO_KiB = 1024d;
-        private static final double BYTES_TO_MiB = 1024d * 1024d;
-        private static final double BYTES_TO_GiB = 1024d * 1024d * 1024d;
-
-        private static final Field STRING_VALUE = ReflectionUtil.lookupField(String.class, "value");
-
-        private static String bytesToHuman(long bytes) {
-            return bytesToHuman("%4.2f", bytes);
-        }
-
-        private static String bytesToHuman(String format, long bytes) {
-            if (bytes < BYTES_TO_KiB) {
-                return String.format(format, (double) bytes) + "B";
-            } else if (bytes < BYTES_TO_MiB) {
-                return String.format(format, bytesToKiB(bytes)) + "KB";
-            } else if (bytes < BYTES_TO_GiB) {
-                return String.format(format, bytesToMiB(bytes)) + "MB";
-            } else {
-                return String.format(format, bytesToGiB(bytes)) + "GB";
-            }
-        }
-
-        private static double bytesToKiB(long bytes) {
-            return bytes / BYTES_TO_KiB;
-        }
-
-        private static double bytesToGiB(long bytes) {
-            return bytes / BYTES_TO_GiB;
-        }
-
-        private static double bytesToMiB(long bytes) {
-            return bytes / BYTES_TO_MiB;
-        }
-
-        private static double millisToSeconds(double millis) {
-            return millis / MILLIS_TO_SECONDS;
-        }
-
-        private static double nanosToSeconds(double nanos) {
-            return nanos / NANOS_TO_SECONDS;
-        }
-
-        private static int getInternalByteArrayLength(String string) {
-            try {
-                return ((byte[]) STRING_VALUE.get(string)).length;
-            } catch (ReflectiveOperationException ex) {
-                throw VMError.shouldNotReachHere(ex);
-            }
-        }
-
-        private static double getUsedMemory() {
-            return bytesToGiB(Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory());
-        }
-
-        private static String stringFilledWith(int size, String fill) {
-            return new String(new char[size]).replace("\0", fill);
-        }
-
-        private static String truncateClassOrPackageName(String classOrPackageName) {
-            int classNameLength = classOrPackageName.length();
-            int maxLength = CHARACTERS_PER_LINE / 2 - 10;
-            if (classNameLength <= maxLength) {
-                return classOrPackageName;
-            }
-            StringBuilder sb = new StringBuilder();
-            int currentDot = -1;
-            while (true) {
-                int nextDot = classOrPackageName.indexOf('.', currentDot + 1);
-                if (nextDot < 0) { // Not more dots, handle the rest and return.
-                    String rest = classOrPackageName.substring(currentDot + 1);
-                    int sbLength = sb.length();
-                    int restLength = rest.length();
-                    if (sbLength + restLength <= maxLength) {
-                        sb.append(rest);
-                    } else {
-                        int remainingSpaceDivBy2 = (maxLength - sbLength) / 2;
-                        sb.append(rest.substring(0, remainingSpaceDivBy2 - 1) + "~" + rest.substring(restLength - remainingSpaceDivBy2, restLength));
-                    }
-                    break;
-                }
-                sb.append(classOrPackageName.charAt(currentDot + 1)).append('.');
-                if (sb.length() + (classNameLength - nextDot) <= maxLength) {
-                    // Rest fits maxLength, append and return.
-                    sb.append(classOrPackageName.substring(nextDot + 1));
-                    break;
-                }
-                currentDot = nextDot;
-            }
-            return sb.toString();
-        }
     }
 
     private static class GCStats {
