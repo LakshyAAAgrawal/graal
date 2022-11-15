@@ -58,16 +58,30 @@ public class NativeImageHeapGraphFeature implements InternalFeature {
     public void afterImageWrite(AfterImageWriteAccess a) {
         FeatureImpl.AfterImageWriteAccessImpl access = (FeatureImpl.AfterImageWriteAccessImpl) a;
         NativeImageHeapGraph graph = new NativeImageHeapGraph(heap, this.image.getImageHeapSize());
+
         {
             String reportName = "image_heap_connected_components_" + access.getImagePath().getFileName().toString();
             File file = ReportUtils.reportFile(SubstrateOptions.reportsPath(), reportName, "txt");
-            ReportUtils.report(reportName, file.toPath(), graph::printConnectedComponentsHistogram);
+            ReportUtils.report(reportName, file.toPath(), graph::printConnectedComponentsHistogramsAndEntryPoints);
         }
+        {
+            String reportName = "image_objects_report_" + access.getImagePath().getFileName().toString();
+            File file = ReportUtils.reportFile(SubstrateOptions.reportsPath(), reportName, "txt");
+            ReportUtils.report(reportName, file.toPath(), graph::printObjectsReport);
+        }
+
+        {
+            String reportName = "image_objects_reference_chain_strings_" + access.getImagePath().getFileName().toString();
+            File file = ReportUtils.reportFile(SubstrateOptions.reportsPath(), reportName, "txt");
+            ReportUtils.report(reportName, file.toPath(), graph::printReferenceChainStringReport);
+        }
+
         {
             String reportName = "image_heap_entry_points_" + access.getImagePath().getFileName().toString();
             File file = ReportUtils.reportFile(SubstrateOptions.reportsPath(), reportName, "txt");
             ReportUtils.report(reportName, file.toPath(), graph::printEntryPointsReport);
         }
+
         {
             String reportName = "image_heap_reference_graph_" + access.getImagePath().getFileName().toString();
             File file = ReportUtils.reportFile(SubstrateOptions.reportsPath(), reportName, "dot");
@@ -106,10 +120,6 @@ public class NativeImageHeapGraphFeature implements InternalFeature {
         Integer f = 5;
         Integer g = 6;
         graph.connect(e, f);
-        graph.addNode(g);
 
-        NativeImageHeapGraph.CollectNLevels<Integer> objectCollectNLevels = new NativeImageHeapGraph.CollectNLevels<>(2);
-        graph.bfs(a, objectCollectNLevels);
-        VMError.guarantee(objectCollectNLevels.getNodes().size() == 3);
     }
 }

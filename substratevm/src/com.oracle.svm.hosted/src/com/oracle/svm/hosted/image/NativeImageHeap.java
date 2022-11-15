@@ -740,7 +740,7 @@ public final class NativeImageHeap implements ImageHeap {
             this.size = size;
             this.identityHashCode = identityHashCode;
             this.firstReason = reason;
-            this.allReasons = Collections.newSetFromMap(new IdentityHashMap<>());
+            this.allReasons = Collections.newSetFromMap(new HashMap<>());
             this.allReasons.add(reason);
         }
 
@@ -841,25 +841,30 @@ public final class NativeImageHeap implements ImageHeap {
 
         @Override
         public String toString() {
-            StringBuilder result = new StringBuilder(getObject().getClass().getName()).append(" -> ");
-            Object cur = getMainReason();
-            Object prev = null;
-            boolean skipped = false;
-            while (cur instanceof ObjectInfo) {
-                skipped = prev != null;
-                prev = cur;
-                cur = ((ObjectInfo) cur).getMainReason();
-            }
-            if (skipped) {
-                result.append("... -> ");
-            }
-            if (prev != null) {
-                result.append(prev);
-            } else {
-                result.append(cur);
-            }
+            StringBuilder result = new StringBuilder(getObject().getClass().getName()).append(":").append(hashCode());
             return result.toString();
         }
+//        @Override
+//        public String toString() {
+//            StringBuilder result = new StringBuilder(getObject().getClass().getName()).append(" -> ");
+//            Object cur = getMainReason();
+//            Object prev = null;
+//            boolean skipped = false;
+//            while (cur instanceof ObjectInfo) {
+//                skipped = prev != null;
+//                prev = cur;
+//                cur = ((ObjectInfo) cur).getMainReason();
+//            }
+//            if (skipped) {
+//                result.append("... -> ");
+//            }
+//            if (prev != null) {
+//                result.append(prev);
+//            } else {
+//                result.append(cur);
+//            }
+//            return result.toString();
+//        }
 
         public List<ObjectInfo> upwardsReferenceChain() {
             ArrayList<ObjectInfo> references = new ArrayList<>();

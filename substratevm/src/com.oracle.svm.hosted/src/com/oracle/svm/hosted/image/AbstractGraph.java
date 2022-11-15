@@ -4,30 +4,52 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 import java.util.Stack;
+import java.util.stream.Collectors;
 
 public abstract class AbstractGraph<Node> {
 
-    protected final HashMap<Node, NodeData> nodes = new HashMap<>();
+    protected final Map<Node, NodeData> nodes = hashMapInstance();
+
+    protected <K,V> Map<K,V> hashMapInstance() {
+        return new IdentityHashMap<K, V>();
+    }
+
+    protected <K> Set<K> hashSetInstance() {
+        return Collections.newSetFromMap(hashMapInstance());
+    }
 
     protected long numberOfEdges = 0;
-
-    protected void doConnect(Node from, Node to) {
+    public boolean inGraph(Node n) {
+        return nodes.containsKey(n);
+    }
+    protected void doConnect(Map<Node, NodeData> nodes, Node from, Node to) {
         if (from == null || to == null)
             return;
-        NodeData fromNodeData = addNode(from);
-        addNode(to);
+        NodeData fromNodeData = addNode(nodes, from);
+        addNode(nodes, to);
         boolean connectionExisted = !fromNodeData.getNeighbours().add(to);
         numberOfEdges += !connectionExisted ? 1 : 0;
     }
 
     public abstract void connect(Node a, Node b);
 
-    public NodeData addNode(Node a) {
+    public Set<Node> getRoots() {
+        Set<Node> roots = hashSetInstance();
+        for (Node node : nodes.keySet()) {
+            if (isRoot(node))  {
+                roots.add(node);
+            }
+        }
+        return roots;
+    }
+
+    protected NodeData addNode(Map<Node, NodeData> nodes, Node a) {
         if (nodes.containsKey(a)) {
             return nodes.get(a);
         }
@@ -55,15 +77,7 @@ public abstract class AbstractGraph<Node> {
         return nodeData.getNeighbours();
     }
 
-    public List<Node> getLeaves() {
-        List<Node> result = new ArrayList<>();
-        for (Map.Entry<Node, NodeData> entry : this.nodes.entrySet())  {
-            if (entry.getValue().getNeighbours().size() == 0) {
-               result.add(entry.getKey());
-            }
-        }
-        return result;
-    }
+    public abstract boolean isRoot(Node node);
 
     public int getNumberOfNodes() {
         return nodes.size();
@@ -90,7 +104,7 @@ public abstract class AbstractGraph<Node> {
             }
             nodeVisitor.accept(this, state);
             if (nodeVisitor.shouldTerminateVisit()) {
-                return nodeVisitor;
+                break;
             }
             for (Node neighbour : getNeighbours(state.currentNode)) {
                 if (!visited[getNodeId(neighbour)]) {
@@ -115,7 +129,7 @@ public abstract class AbstractGraph<Node> {
             visited[currentNodeId] = true;
             nodeVisitor.accept(this, state);
             if (nodeVisitor.shouldTerminateVisit()) {
-                return nodeVisitor;
+                break;
             }
             for (Node neighbour : getNeighbours(state.currentNode)) {
                 if (!visited[getNodeId(neighbour)]) {
@@ -151,7 +165,7 @@ public abstract class AbstractGraph<Node> {
         private final int nodeId;
 
         public NodeData(int nodeId) {
-            this.neighbours = Collections.newSetFromMap(new HashMap<>());
+            this.neighbours = hashSetInstance();
             this.nodeId = nodeId;
         }
 
