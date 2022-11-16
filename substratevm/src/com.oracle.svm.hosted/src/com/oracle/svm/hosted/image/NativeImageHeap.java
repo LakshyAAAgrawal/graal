@@ -42,6 +42,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 
+import com.oracle.svm.core.code.ImageCodeInfo;
 import com.oracle.svm.core.hub.DynamicHubCompanion;
 import org.graalvm.compiler.api.replacements.Fold;
 import org.graalvm.compiler.core.common.CompressEncoding;
@@ -600,7 +601,7 @@ public final class NativeImageHeap implements ImageHeap {
     }
 
     /** Determine if an object in the host heap will be immutable in the native image heap. */
-    private boolean isKnownImmutable(final Object obj) {
+    boolean isKnownImmutable(final Object obj) {
         if (obj instanceof String) {
             // Strings need to have their hash code set or they are not immutable.
             // If the hash is 0, then it will be recomputed again (and again)
@@ -725,7 +726,8 @@ public final class NativeImageHeap implements ImageHeap {
         ByHostedField,
         ByStaticObjectFields,
         ByStaticPrimitiveFields,
-        Other;
+        ByImageCodeInfo,
+        ByOther;
 
         public static PulledIn value(Object reason) {
             if (reason instanceof String) {
@@ -743,6 +745,9 @@ public final class NativeImageHeap implements ImageHeap {
                 return ByHostedField;
             } else if (reason instanceof ObjectInfo) {
                 ObjectInfo info = (ObjectInfo) reason;
+                if (info.getObjectClass().equals(ImageCodeInfo.class)) {
+                    return ByImageCodeInfo;
+                }
                 if (info.getBelongsToSet().contains(IsInternedStringsTable) || info.getBelongsToSet().contains(ByInternedStringsTable)) {
                     return ByInternedStringsTable;
                 }
@@ -752,7 +757,7 @@ public final class NativeImageHeap implements ImageHeap {
                 }
                 return info.pulledInBy();
             }
-            return Other;
+            return ByOther;
         }
     }
 
@@ -789,7 +794,11 @@ public final class NativeImageHeap implements ImageHeap {
             this.firstReason = reason;
             this.allReasons = Collections.newSetFromMap(new HashMap<>());
             this.allReasons.add(reason);
-            this.pulledIn = PulledIn.value(reason);
+            if (getObjectClass().equals(ImageCodeInfo.class)) {
+                this.pulledIn = PulledIn.ByImageCodeInfo;
+            } else {
+                this.pulledIn = PulledIn.value(reason);
+            }
             this.pulledInSet = new TreeSet<>();
             this.pulledInSet.add(this.pulledIn);
         }
@@ -927,27 +936,6 @@ public final class NativeImageHeap implements ImageHeap {
             StringBuilder result = new StringBuilder(getObject().getClass().getName()).append(":").append(hashCode());
             return result.toString();
         }
-// @Override
-// public String toString() {
-// StringBuilder result = new StringBuilder(getObject().getClass().getName()).append(" -> ");
-// Object cur = getMainReason();
-// Object prev = null;
-// boolean skipped = false;
-// while (cur instanceof ObjectInfo) {
-// skipped = prev != null;
-// prev = cur;
-// cur = ((ObjectInfo) cur).getMainReason();
-// }
-// if (skipped) {
-// result.append("... -> ");
-// }
-// if (prev != null) {
-// result.append(prev);
-// } else {
-// result.append(cur);
-// }
-// return result.toString();
-// }
 
         public List<ObjectInfo> upwardsReferenceChain() {
             ArrayList<ObjectInfo> references = new ArrayList<>();

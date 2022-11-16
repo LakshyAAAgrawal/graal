@@ -398,12 +398,13 @@ public class NativeImageHeapGraph {
     }
 
 
-    private static String formatObject(Object reason, BigBang bb) {
+    private String formatObject(Object reason, BigBang bb) {
         if (reason instanceof String) {
             return String.format("Method(%s)", reason);
         } else if (reason instanceof ObjectInfo) {
             ObjectInfo r = (ObjectInfo) reason;
-            return String.format("ObjectInfo(%s, %d, %s)", r.getObjectClass().getName(), r.getIdentityHashCode(), constantAsString(bb, r.getConstant()));
+            return String.format("ObjectInfo(%s, %d, %s, %b)", r.getObjectClass().getName(), r.getIdentityHashCode(), constantAsString(bb, r.getConstant()),
+                    this.heap.isKnownImmutable(r));
         } else if (reason instanceof HostedField) {
             HostedField r = (HostedField) reason;
             return r.format("HostedField(class %H { static %t %n; })");
