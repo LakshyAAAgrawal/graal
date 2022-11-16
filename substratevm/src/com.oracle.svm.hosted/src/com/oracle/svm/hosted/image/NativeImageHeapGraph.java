@@ -1,12 +1,14 @@
 package com.oracle.svm.hosted.image;
 
 import java.io.PrintWriter;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Queue;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Predicate;
@@ -55,6 +57,27 @@ public class NativeImageHeapGraph {
             connectChildToParentObjects(graph, objectInfo);
         }
         return graph;
+    }
+
+    private static boolean isInInternedStringsTable(ObjectInfo info) {
+        for (Object reason : info.getAllReasons()) {
+            if (reason instanceof ObjectInfo) {
+                ObjectInfo r = (ObjectInfo) reason;
+                if (r.getMainReason().equals("internedStrings table")) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static ObjectInfo getInternedStringsTableObjectInfo(NativeImageHeap heap) {
+        for (ObjectInfo info : heap.getObjects()) {
+            if (info.getMainReason().equals("internedStrings table")) {
+                return info;
+            }
+        }
+        return null;
     }
 
     private static void connectChildToParentObjects(AbstractGraph<ObjectInfo> graph, ObjectInfo objectInfo) {
@@ -125,26 +148,33 @@ public class NativeImageHeapGraph {
         out.println();
         out.println("===========Connected components in the Native Image Heap===========");
         for (int i = 0; i < connectedComponents.size(); i++) {
-            int componentId = i + 1;
             ConnectedComponent connectedComponent = connectedComponents.get(i);
             float percentageOfTotalHeapSize = 100.0f * (float) connectedComponent.getSizeInBytes() /
                             this.totalHeapSizeInBytes;
             HeapHistogram objectHistogram = new HeapHistogram(out);
             connectedComponent.getObjects().forEach(o -> objectHistogram.add(o, o.getSize()));
             objectHistogram.printHeadings(
-                            String.format("Component=%d | Size=%s | Percentage of total image heap size=%.4f%%", componentId, Utils.bytesToHuman(connectedComponent.getSizeInBytes()), percentageOfTotalHeapSize));
+                            String.format("Component=%d | Size=%s | Percentage of total image heap size=%.4f%%", i, Utils.bytesToHuman(connectedComponent.getSizeInBytes()), percentageOfTotalHeapSize));
             objectHistogram.print();
 //            connectedComponent.getObjects().get(0).getAllReasons().stream().map(NativeImageHeapGraph::formatReason).forEach(out::println);
-            Set<String> uniqueReasons = new TreeSet<>();
-            for (ObjectInfo object : connectedComponent.getObjects()) {
-                for (Object reason : object.getAllReasons()) {
-                    if (!(reason instanceof ObjectInfo)) {
-                        String formatedReason = formatObject(reason, bb);
-                        uniqueReasons.add(formatedReason);
-                    }
-                }
-            }
-            uniqueReasons.forEach(out::println);
+//            Set<String> uniqueReasons = new TreeSet<>();
+//            for (ObjectInfo object : connectedComponent.getObjects()) {
+//                if (isInternedStrings(object)) {
+//                    uniqueReasons.add(formatObject(object, bb));
+//                }
+//                if (object.getAllReasons().size() == 1) {
+//                    String formatedReason = String.format("%d=%s", i, formatObject(object.getMainReason(), bb));
+//                    uniqueReasons.add(formatedReason);
+//                    continue;
+//                }
+//                for (Object reason : object.getAllReasons()) {
+//                    if (!(reason instanceof ObjectInfo)) {
+//                        String formatedReason = String.format("%d=%s", i, formatObject(object.getMainReason(), bb));
+//                        uniqueReasons.add(formatedReason);
+//                    }
+//                }
+//            }
+//            uniqueReasons.forEach(out::println);
             out.println();
         }
     }
@@ -252,6 +282,15 @@ public class NativeImageHeapGraph {
             }
         }
         return false;
+    }
+
+    public void dumpImageHeap(PrintWriter out) {
+        for (int i = 0; i < connectedComponents.size(); i++) {
+            ConnectedComponent connectedComponent = connectedComponents.get(i);
+            for (ObjectInfo info : connectedComponent.getObjects()) {
+                out.printf("%d=ObjectInfo(%s,%d,%s)\n", i, info.getObject().getClass(), info.getIdentityHashCode(), constantAsString(bb, info.getConstant()));
+            }
+        }
     }
 
 
@@ -367,6 +406,7 @@ public class NativeImageHeapGraph {
         com.oracle.svm.core.classinitialization.ClassInitializationInfo.class,
     };
 
+
     private static boolean isInternedStrings(ObjectInfo info) {
         Object mainReason = info.getMainReason();
         return mainReason instanceof String && mainReason.toString().equals("internedStrings table");
@@ -376,6 +416,8 @@ public class NativeImageHeapGraph {
 //            }
 //        }
     }
+
+
 
     private static boolean internalObject(ObjectInfo objectInfo) {
         for (Class<?> clazz : objectTypesToSuppress) {
@@ -390,20 +432,36 @@ public class NativeImageHeapGraph {
         if (isInternedStrings(objectInfo)) {
             return true;
         }
+
         return false;
     }
 
     public void printObjectsReport(PrintWriter out) {
-        for (ObjectInfo objectInfo : this.objectInfoGraph.getNodesSet()) {
-            if (internalObject(objectInfo)) {
-                continue;
-            }
-            out.printf("%s <- ", formatObject(objectInfo, bb));
-            for (Object reason : objectInfo.getAllReasons()) {
-                out.printf("%s; ", formatObject(reason, bb));
+        for (int i = 0; i < connectedComponents.size(); i++) {
+            ConnectedComponent connectedComponent = connectedComponents.get(i);
+            for (ObjectInfo objectInfo : connectedComponent.getObjects()) {
+                if (internalObject(objectInfo)) {
+                    continue;
+                }
+                out.printf("%d=%s <- ", i, formatObject(objectInfo, bb));
+                for (Object reason : objectInfo.getAllReasons()) {
+                    out.printf("%d=%s; ", i, formatObject(reason, bb));
+                }
+                out.println();
             }
             out.println();
         }
+
+//        for (ObjectInfo objectInfo : this.objectInfoGraph.getNodesSet()) {
+//            if (internalObject(objectInfo)) {
+//                continue;
+//            }
+//            out.printf("%s <- ", formatObject(objectInfo, bb));
+//            for (Object reason : objectInfo.getAllReasons()) {
+//                out.printf("%s; ", formatObject(reason, bb));
+//            }
+//            out.println();
+//        }
     }
 
     public void printComponentsImagePartitionHistogramReport(PrintWriter out) {

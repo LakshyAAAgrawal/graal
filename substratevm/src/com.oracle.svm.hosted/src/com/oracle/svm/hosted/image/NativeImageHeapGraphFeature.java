@@ -71,10 +71,16 @@ public class NativeImageHeapGraphFeature implements InternalFeature {
         }
 
         {
-            String reportName = "image_objects_reference_chain_strings_" + access.getImagePath().getFileName().toString();
+            String reportName = "objects_dump_report_" + access.getImagePath().getFileName().toString();
             File file = ReportUtils.reportFile(SubstrateOptions.reportsPath(), reportName, "txt");
-            ReportUtils.report(reportName, file.toPath(), graph::printReferenceChainStringReport);
+            ReportUtils.report(reportName, file.toPath(), graph::dumpImageHeap);
         }
+
+//        {
+//            String reportName = "image_objects_reference_chain_strings_" + access.getImagePath().getFileName().toString();
+//            File file = ReportUtils.reportFile(SubstrateOptions.reportsPath(), reportName, "txt");
+//            ReportUtils.report(reportName, file.toPath(), graph::printReferenceChainStringReport);
+//        }
 
         {
             String reportName = "image_heap_entry_points_" + access.getImagePath().getFileName().toString();
@@ -82,11 +88,11 @@ public class NativeImageHeapGraphFeature implements InternalFeature {
             ReportUtils.report(reportName, file.toPath(), graph::printEntryPointsReport);
         }
 
-        {
-            String reportName = "image_heap_reference_graph_" + access.getImagePath().getFileName().toString();
-            File file = ReportUtils.reportFile(SubstrateOptions.reportsPath(), reportName, "dot");
-            ReportUtils.report(reportName, file.toPath(), graph::printReferenceChainGraph);
-        }
+//        {
+//            String reportName = "image_heap_reference_graph_" + access.getImagePath().getFileName().toString();
+//            File file = ReportUtils.reportFile(SubstrateOptions.reportsPath(), reportName, "dot");
+//            ReportUtils.report(reportName, file.toPath(), graph::printReferenceChainGraph);
+//        }
     }
     private static void testGraph() {
         DirectedGraph<Integer> graph = new DirectedGraph<>();

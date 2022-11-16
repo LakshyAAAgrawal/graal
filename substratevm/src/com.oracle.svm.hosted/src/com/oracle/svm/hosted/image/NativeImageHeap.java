@@ -696,6 +696,10 @@ public final class NativeImageHeap implements ImageHeap {
         }
     }
 
+    public boolean isInInternedStrings(String value) {
+        return internedStrings.containsKey(value);
+    }
+
     static class AddObjectData {
 
         AddObjectData(JavaConstant original, boolean immutableFromParent, Object reason) {
@@ -897,6 +901,7 @@ public final class NativeImageHeap implements ImageHeap {
             assert (value == PhaseValue.ALLOWED) : "Can not disallow while in phase " + value.toString();
             value = PhaseValue.AFTER;
         }
+
 
         public boolean isAllowed() {
             return (value == PhaseValue.ALLOWED);
