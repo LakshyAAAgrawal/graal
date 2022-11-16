@@ -776,7 +776,7 @@ public final class NativeImageHeap implements ImageHeap {
          */
         private final Object firstReason;
         private final Set<Object> allReasons;
-        private final PulledIn pulledIn;
+        private PulledIn pulledIn;
         private final Set<PulledIn> pulledInSet;
         ObjectInfo(Object object, long size, HostedClass clazz, int identityHashCode, Object reason) {
             this(SubstrateObjectConstant.forObject(object), size, clazz, identityHashCode, reason);
@@ -792,13 +792,22 @@ public final class NativeImageHeap implements ImageHeap {
             this.firstReason = reason;
             this.allReasons = Collections.newSetFromMap(new HashMap<>());
             this.allReasons.add(reason);
+
+            this.pulledInSet = new TreeSet<>();
+            this.pulledIn = PulledIn.value(reason);
+            this.pulledInSet.add(this.pulledIn);
+            if (reason instanceof ObjectInfo) {
+                ObjectInfo r = (ObjectInfo) reason;
+                this.pulledInSet.addAll(r.getPulledInSet());
+            }
             if (getObjectClass().equals(ImageCodeInfo.class)) {
                 this.pulledIn = PulledIn.ByImageCodeInfo;
-            } else {
-                this.pulledIn = PulledIn.value(reason);
+                this.pulledInSet.add(PulledIn.ByImageCodeInfo);
             }
-            this.pulledInSet = new TreeSet<>();
-            this.pulledInSet.add(this.pulledIn);
+//            else {
+//                this.pulledIn = PulledIn.value(reason);
+//            }
+//            this.pulledInSet.add(this.pulledIn);
         }
 
         public Set<PulledIn> getPulledInSet() {
@@ -827,6 +836,10 @@ public final class NativeImageHeap implements ImageHeap {
         public void addReason(Object reason) {
             this.allReasons.add(reason);
             this.pulledInSet.add(PulledIn.value(reason));
+            if (reason instanceof ObjectInfo) {
+                ObjectInfo r = (ObjectInfo) reason;
+                this.pulledInSet.addAll(r.getPulledInSet());
+            }
         }
 
         public Object getMainReason() {

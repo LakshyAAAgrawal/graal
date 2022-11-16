@@ -104,7 +104,7 @@ public class NativeImageHeapGraph {
         List<ConnectedComponent> connectedComponents = new ArrayList<>();
         for (NativeImageHeap.PulledIn whatsPulledIn : splitBy) {
             Set<ObjectInfo> objectInfos = removeObjectsBy(whatsPulledIn, allImageHeapObjects);
-            if (whatsPulledIn != NativeImageHeap.PulledIn.ByDynamicHub) {
+            if (whatsPulledIn != NativeImageHeap.PulledIn.ByDynamicHub && whatsPulledIn != NativeImageHeap.PulledIn.ByInternedStringsTable) {
                 AbstractGraph<ObjectInfo> graph = constructGraph(objectInfos);
                 connectedComponents.addAll(computeConnectedComponentsInGraph(graph, whatsPulledIn));
             }
@@ -223,12 +223,10 @@ public class NativeImageHeapGraph {
         private final List<List<ObjectInfo>> connectedComponents = new ArrayList<>();
         private boolean[] visited;
         private int componentId = 0;
-        private PrintWriter out;
 
         public ConnectedComponentsCollector(AbstractGraph<ObjectInfo> graph) {
             this.visited = new boolean[graph.getNumberOfNodes()];
             this.graph = graph;
-            this.out = out;
         }
 
         @Override
@@ -239,8 +237,6 @@ public class NativeImageHeapGraph {
         @Override
         public void accept(AbstractGraph<ObjectInfo> graph, AbstractGraph.VisitorState<ObjectInfo> state) {
             int nodeId = graph.getNodeId(state.currentNode);
-// out.printf("%s -> %s\n", state.parentNode == null ? "null" : state.parentNode,
-// state.currentNode);
             this.visited[nodeId] = true;
             connectedComponents.get(componentId).add(state.currentNode);
         }
@@ -252,9 +248,7 @@ public class NativeImageHeapGraph {
 
         @Override
         public boolean shouldVisit(ObjectInfo objectInfo) {
-// if (suppressInternalObjects(objectInfo)) {
-// return false;
-// }
+
             return !this.visited[graph.getNodeId(objectInfo)];
         }
 
@@ -273,43 +267,6 @@ public class NativeImageHeapGraph {
         public List<List<ObjectInfo>> getListOfObjectsForEachComponent() {
             return connectedComponents;
         }
-    }
-
-    private static final Class<?>[] objectTypesToSuppress = {
-                    DynamicHub.class,
-                    DynamicHubCompanion.class,
-                    com.oracle.svm.core.classinitialization.ClassInitializationInfo.class,
-    };
-
-    private static boolean isInternedStrings(Object info) {
-        if (info instanceof ObjectInfo) {
-            Object mainReason = ((ObjectInfo) info).getMainReason();
-            return mainReason instanceof String && mainReason.toString().equals("internedStrings table");
-        } else {
-            return false;
-        }
-// for (Object reason : info.getAllReasons()) {
-// if (reason instanceof String && reason.toString().equals("internedStrings table")) {
-// return true;
-// }
-// }
-    }
-
-    private static boolean internalObject(ObjectInfo objectInfo) {
-        for (Class<?> clazz : objectTypesToSuppress) {
-            if (objectInfo.getObject().getClass().equals(clazz)) {
-                return true;
-            }
-            if (objectInfo.getObject().getClass().toString().contains(clazz.getName())) {
-                return true;
-            }
-        }
-
-        if (isInternedStrings(objectInfo)) {
-            return true;
-        }
-
-        return false;
     }
 
     private static String formatReason(Object reason) {
@@ -342,11 +299,6 @@ public class NativeImageHeapGraph {
                 out.printf("%d=ObjectInfo(%s,%d,%s,%s)\n", i, info.getObjectClass().getName(), info.getIdentityHashCode(), constantAsString(bb, info.getConstant()), info.getPulledInBySetAsString());
             }
         }
-// for (ObjectInfo info : this.heap.getObjects()) {
-// out.printf("%d=ObjectInfo(%s,%d,%s,%s)\n", 0, info.getObjectClass().getName(),
-// info.getIdentityHashCode(), constantAsString(bb, info.getConstant()),
-// info.getPulledInBySetAsString());
-// }
     }
 
     public void printObjectInfosAndReferencesToObjectInfoForEachComponented(PrintWriter out) {
