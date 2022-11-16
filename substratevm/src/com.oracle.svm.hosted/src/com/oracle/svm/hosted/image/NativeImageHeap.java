@@ -40,7 +40,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeSet;
 
+import com.oracle.svm.core.hub.DynamicHubCompanion;
 import org.graalvm.compiler.api.replacements.Fold;
 import org.graalvm.compiler.core.common.CompressEncoding;
 import org.graalvm.compiler.core.common.NumUtil;
@@ -225,7 +227,7 @@ public final class NativeImageHeap implements ImageHeap {
             String[] imageInternedStrings = internedStrings.keySet().toArray(new String[0]);
             Arrays.sort(imageInternedStrings);
             ImageSingletons.lookup(StringInternSupport.class).setImageInternedStrings(imageInternedStrings);
-
+            System.out.println(internedStrings.containsKey("com.oracle.truffle.api.memory"));
             addObject(imageInternedStrings, true, "internedStrings table");
 
             // Process any objects that were transitively added to the heap.
@@ -715,7 +717,47 @@ public final class NativeImageHeap implements ImageHeap {
 
     private final int imageHeapOffsetInAddressSpace = Heap.getHeap().getImageHeapOffsetInAddressSpace();
 
+    private enum PulledIn {
+        IsInternedStringsTable,
+        ByInternedStringsTable,
+        ByDynamicHub,
+        ByMethod,
+        ByHostedField,
+        ByStaticObjectFields,
+        ByStaticPrimitiveFields,
+        Other;
+
+        public static PulledIn value(Object reason) {
+            if (reason instanceof String) {
+                if (reason.toString().equals("internedStrings table")) {
+                    return IsInternedStringsTable;
+                }
+                if (reason.toString().equals("staticObjectFields")) {
+                    return ByStaticObjectFields;
+                }
+                if (reason.toString().equals("staticPrimitiveFields")) {
+                    return ByStaticPrimitiveFields;
+                }
+                return ByMethod;
+            } else if (reason instanceof HostedField) {
+                return ByHostedField;
+            } else if (reason instanceof ObjectInfo) {
+                ObjectInfo info = (ObjectInfo) reason;
+                if (info.getBelongsToSet().contains(IsInternedStringsTable) || info.getBelongsToSet().contains(ByInternedStringsTable)) {
+                    return ByInternedStringsTable;
+                }
+                if (info.getObject().getClass().equals(DynamicHub.class)
+                        || info.getObject().getClass().equals(DynamicHubCompanion.class)) {
+                    return ByDynamicHub;
+                }
+                return info.pulledInBy();
+            }
+            return Other;
+        }
+    }
+
     public final class ObjectInfo implements ImageHeapObject {
+
         private final JavaConstant constant;
         private final HostedClass clazz;
         private final long size;
@@ -731,7 +773,8 @@ public final class NativeImageHeap implements ImageHeap {
          */
         private final Object firstReason;
         private final Set<Object> allReasons;
-
+        private final PulledIn pulledIn;
+        private final Set<PulledIn> pulledInSet;
         ObjectInfo(Object object, long size, HostedClass clazz, int identityHashCode, Object reason) {
             this(SubstrateObjectConstant.forObject(object), size, clazz, identityHashCode, reason);
         }
@@ -746,10 +789,46 @@ public final class NativeImageHeap implements ImageHeap {
             this.firstReason = reason;
             this.allReasons = Collections.newSetFromMap(new HashMap<>());
             this.allReasons.add(reason);
+            this.pulledIn = PulledIn.value(reason);
+            this.pulledInSet = new TreeSet<>();
+            this.pulledInSet.add(this.pulledIn);
+        }
+
+        public Set<PulledIn> getBelongsToSet() {
+            return pulledInSet;
+        }
+
+        public PulledIn pulledInBy() {
+            if (belongsToInternedStrings()) {
+                return PulledIn.ByInternedStringsTable;
+            } else if (belongsToDynamicHubs()) {
+                return PulledIn.ByDynamicHub;
+            }
+            return this.pulledIn;
+        }
+
+        public String getPulledInBySet() {
+            StringBuilder builder = new StringBuilder();
+            builder.append("PulledIn{");
+            for (PulledIn belongs : pulledInSet) {
+                builder.append(belongs);
+                builder.append(" ");
+            }
+            builder.append("}");
+            return builder.toString();
+        }
+
+        public boolean belongsToInternedStrings() {
+            return this.pulledInSet.contains(PulledIn.ByInternedStringsTable);
+        }
+
+        public boolean belongsToDynamicHubs() {
+            return this.pulledInSet.add(PulledIn.ByDynamicHub);
         }
 
         public void addReason(Object reason) {
             this.allReasons.add(reason);
+            this.pulledInSet.add(PulledIn.value(reason));
         }
 
         public Object getMainReason() {
@@ -848,27 +927,27 @@ public final class NativeImageHeap implements ImageHeap {
             StringBuilder result = new StringBuilder(getObject().getClass().getName()).append(":").append(hashCode());
             return result.toString();
         }
-//        @Override
-//        public String toString() {
-//            StringBuilder result = new StringBuilder(getObject().getClass().getName()).append(" -> ");
-//            Object cur = getMainReason();
-//            Object prev = null;
-//            boolean skipped = false;
-//            while (cur instanceof ObjectInfo) {
-//                skipped = prev != null;
-//                prev = cur;
-//                cur = ((ObjectInfo) cur).getMainReason();
-//            }
-//            if (skipped) {
-//                result.append("... -> ");
-//            }
-//            if (prev != null) {
-//                result.append(prev);
-//            } else {
-//                result.append(cur);
-//            }
-//            return result.toString();
-//        }
+// @Override
+// public String toString() {
+// StringBuilder result = new StringBuilder(getObject().getClass().getName()).append(" -> ");
+// Object cur = getMainReason();
+// Object prev = null;
+// boolean skipped = false;
+// while (cur instanceof ObjectInfo) {
+// skipped = prev != null;
+// prev = cur;
+// cur = ((ObjectInfo) cur).getMainReason();
+// }
+// if (skipped) {
+// result.append("... -> ");
+// }
+// if (prev != null) {
+// result.append(prev);
+// } else {
+// result.append(cur);
+// }
+// return result.toString();
+// }
 
         public List<ObjectInfo> upwardsReferenceChain() {
             ArrayList<ObjectInfo> references = new ArrayList<>();
@@ -901,7 +980,6 @@ public final class NativeImageHeap implements ImageHeap {
             assert (value == PhaseValue.ALLOWED) : "Can not disallow while in phase " + value.toString();
             value = PhaseValue.AFTER;
         }
-
 
         public boolean isAllowed() {
             return (value == PhaseValue.ALLOWED);
