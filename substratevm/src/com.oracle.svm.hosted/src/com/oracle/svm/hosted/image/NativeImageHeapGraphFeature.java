@@ -58,41 +58,32 @@ public class NativeImageHeapGraphFeature implements InternalFeature {
     public void afterImageWrite(AfterImageWriteAccess a) {
         FeatureImpl.AfterImageWriteAccessImpl access = (FeatureImpl.AfterImageWriteAccessImpl) a;
         NativeImageHeapGraph graph = new NativeImageHeapGraph(heap, this.image.getImageHeapSize());
-
         {
             String reportName = "image_heap_connected_components_" + access.getImagePath().getFileName().toString();
             File file = ReportUtils.reportFile(SubstrateOptions.reportsPath(), reportName, "txt");
             ReportUtils.report(reportName, file.toPath(), graph::printConnectedComponentsHistogramsAndEntryPoints);
         }
         {
-            String reportName = "image_objects_report_" + access.getImagePath().getFileName().toString();
+            String reportName = "image_heap_objects_and_references_" + access.getImagePath().getFileName().toString();
             File file = ReportUtils.reportFile(SubstrateOptions.reportsPath(), reportName, "txt");
-            ReportUtils.report(reportName, file.toPath(), graph::printObjectsReport);
+            ReportUtils.report(reportName, file.toPath(), graph::printObjectInfosAndReferencesToObjectInfoForEachComponented);
         }
 
         {
-            String reportName = "objects_dump_report_" + access.getImagePath().getFileName().toString();
+            String reportName = "image_heap_objects_and_component_" + access.getImagePath().getFileName().toString();
             File file = ReportUtils.reportFile(SubstrateOptions.reportsPath(), reportName, "txt");
-            ReportUtils.report(reportName, file.toPath(), graph::dumpImageHeap);
+            ReportUtils.report(reportName, file.toPath(), graph::printObjectInfosAndItsComponent);
         }
-
-//        {
-//            String reportName = "image_objects_reference_chain_strings_" + access.getImagePath().getFileName().toString();
-//            File file = ReportUtils.reportFile(SubstrateOptions.reportsPath(), reportName, "txt");
-//            ReportUtils.report(reportName, file.toPath(), graph::printReferenceChainStringReport);
-//        }
-
+        {
+            String reportName = "image_heap_dump_" + access.getImagePath().getFileName().toString();
+            File file = ReportUtils.reportFile(SubstrateOptions.reportsPath(), reportName, "txt");
+            ReportUtils.report(reportName, file.toPath(), graph::dumpImageHeapObjectsInfo);
+        }
         {
             String reportName = "image_heap_entry_points_" + access.getImagePath().getFileName().toString();
             File file = ReportUtils.reportFile(SubstrateOptions.reportsPath(), reportName, "txt");
             ReportUtils.report(reportName, file.toPath(), graph::printEntryPointsReport);
         }
-
-//        {
-//            String reportName = "image_heap_reference_graph_" + access.getImagePath().getFileName().toString();
-//            File file = ReportUtils.reportFile(SubstrateOptions.reportsPath(), reportName, "dot");
-//            ReportUtils.report(reportName, file.toPath(), graph::printReferenceChainGraph);
-//        }
     }
     private static void testGraph() {
         DirectedGraph<Integer> graph = new DirectedGraph<>();

@@ -228,7 +228,6 @@ public final class NativeImageHeap implements ImageHeap {
             String[] imageInternedStrings = internedStrings.keySet().toArray(new String[0]);
             Arrays.sort(imageInternedStrings);
             ImageSingletons.lookup(StringInternSupport.class).setImageInternedStrings(imageInternedStrings);
-            System.out.println(internedStrings.containsKey("com.oracle.truffle.api.memory"));
             addObject(imageInternedStrings, true, "internedStrings table");
 
             // Process any objects that were transitively added to the heap.
@@ -718,8 +717,7 @@ public final class NativeImageHeap implements ImageHeap {
 
     private final int imageHeapOffsetInAddressSpace = Heap.getHeap().getImageHeapOffsetInAddressSpace();
 
-    private enum PulledIn {
-        IsInternedStringsTable,
+    public enum PulledIn {
         ByInternedStringsTable,
         ByDynamicHub,
         ByMethod,
@@ -732,7 +730,7 @@ public final class NativeImageHeap implements ImageHeap {
         public static PulledIn value(Object reason) {
             if (reason instanceof String) {
                 if (reason.toString().equals("internedStrings table")) {
-                    return IsInternedStringsTable;
+                    return ByInternedStringsTable;
                 }
                 if (reason.toString().equals("staticObjectFields")) {
                     return ByStaticObjectFields;
@@ -748,7 +746,7 @@ public final class NativeImageHeap implements ImageHeap {
                 if (info.getObjectClass().equals(ImageCodeInfo.class)) {
                     return ByImageCodeInfo;
                 }
-                if (info.getBelongsToSet().contains(IsInternedStringsTable) || info.getBelongsToSet().contains(ByInternedStringsTable)) {
+                if (info.getPulledInSet().contains(ByInternedStringsTable)) {
                     return ByInternedStringsTable;
                 }
                 if (info.getObject().getClass().equals(DynamicHub.class)
@@ -803,20 +801,19 @@ public final class NativeImageHeap implements ImageHeap {
             this.pulledInSet.add(this.pulledIn);
         }
 
-        public Set<PulledIn> getBelongsToSet() {
+        public Set<PulledIn> getPulledInSet() {
             return pulledInSet;
         }
 
+        public boolean isPulledInBy(PulledIn reason) {
+            return pulledInSet.contains(reason);
+        }
+
         public PulledIn pulledInBy() {
-            if (belongsToInternedStrings()) {
-                return PulledIn.ByInternedStringsTable;
-            } else if (belongsToDynamicHubs()) {
-                return PulledIn.ByDynamicHub;
-            }
             return this.pulledIn;
         }
 
-        public String getPulledInBySet() {
+        public String getPulledInBySetAsString() {
             StringBuilder builder = new StringBuilder();
             builder.append("PulledIn{");
             for (PulledIn belongs : pulledInSet) {
@@ -825,14 +822,6 @@ public final class NativeImageHeap implements ImageHeap {
             }
             builder.append("}");
             return builder.toString();
-        }
-
-        public boolean belongsToInternedStrings() {
-            return this.pulledInSet.contains(PulledIn.ByInternedStringsTable);
-        }
-
-        public boolean belongsToDynamicHubs() {
-            return this.pulledInSet.add(PulledIn.ByDynamicHub);
         }
 
         public void addReason(Object reason) {

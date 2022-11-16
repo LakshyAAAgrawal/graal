@@ -6,6 +6,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.IdentityHashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
@@ -29,7 +30,6 @@ public class NativeImageHeapGraph {
     private final NativeImageHeap heap;
     private final long totalHeapSizeInBytes;
     private List<ConnectedComponent> connectedComponents;
-    private final AbstractGraph<ObjectInfo> objectInfoGraph;
     private final BigBang bb;
 
     private static AbstractGraph<ObjectInfo> getGraphInstance() {
@@ -41,47 +41,76 @@ public class NativeImageHeapGraph {
         long start = System.currentTimeMillis();
         this.heap = heap;
         this.totalHeapSizeInBytes = imageHeapSize;
-        this.objectInfoGraph = computeObjectInfoGraph(this.heap);
         this.bb = this.heap.getMetaAccess().getUniverse().getBigBang();
-        this.connectedComponents = computeConnectedComponents(objectInfoGraph, this.heap, bb);
+        this.connectedComponents = computeConnectedComponents(this.heap);
         long end = System.currentTimeMillis();
         System.out.printf("Elapsed seconds: %.4f\n", (end - start) / 1000.0f);
     }
 
-    private static AbstractGraph<ObjectInfo> computeObjectInfoGraph(NativeImageHeap heap) {
-        AbstractGraph<ObjectInfo> graph = getGraphInstance();
-        heap.getObjects().stream().filter(ObjectInfo::belongsToDynamicHubs);
-        heap.getObjects().stream().filter(ObjectInfo::belongsToInternedStrings);
-        // ImageCodeInfo
-        // com.oracle.svm.core.Resources
+    private static Set<ObjectInfo> getHashSetInstance() {
+        return Collections.newSetFromMap(new IdentityHashMap<>());
+    }
 
-        for (ObjectInfo objectInfo : heap.getObjects()) {
-            connectChildToParentObjects(graph, objectInfo);
+    private static Set<ObjectInfo> removeObjectsBy(NativeImageHeap.PulledIn reason, Set<ObjectInfo> objects) {
+        Set<ObjectInfo> result = getHashSetInstance();
+        for (Iterator<ObjectInfo> iterator = objects.iterator(); iterator.hasNext();) {
+            ObjectInfo o = iterator.next();
+            if (o.isPulledInBy(reason)) {
+                result.add(o);
+                iterator.remove();
+            }
+        }
+        return result;
+    }
+
+    private AbstractGraph<ObjectInfo> constructGraph(Set<ObjectInfo> objects) {
+        AbstractGraph<ObjectInfo> graph = getGraphInstance();
+        for (ObjectInfo objectInfo : objects) {
+            graph.addNode(objectInfo);
+            for (Object referencesToThisObject : objectInfo.getAllReasons()) {
+                if (referencesToThisObject instanceof ObjectInfo && objects.contains(referencesToThisObject)) {
+                    graph.connect((ObjectInfo) referencesToThisObject, objectInfo);
+                }
+            }
         }
         return graph;
     }
 
-    private static void connectChildToParentObjects(AbstractGraph<ObjectInfo> graph, ObjectInfo objectInfo) {
-        if (internalObject(objectInfo)) {
-            return;
+    private List<ConnectedComponent> computeConnectedComponentsInGraph(AbstractGraph<ObjectInfo> graph, NativeImageHeap.PulledIn whatsPulledIn) {
+        ConnectedComponentsCollector collector = new ConnectedComponentsCollector(graph);
+        for (ObjectInfo node : graph.getRoots()) {
+            if (collector.isNotVisited(node)) {
+                graph.dfs(node, collector);
+            }
         }
-        graph.addNode(objectInfo);
-        for (Object possibleReferenceToObjectInfo : objectInfo.getAllReasons()) {
-            if (possibleReferenceToObjectInfo instanceof ObjectInfo && !internalObject((ObjectInfo) possibleReferenceToObjectInfo))
-                graph.connect((ObjectInfo) possibleReferenceToObjectInfo, objectInfo);
-        }
+        return collector.getListOfObjectsForEachComponent()
+                        .stream()
+                        .map(objectsForComponent -> new ConnectedComponent(objectsForComponent, this.heap, whatsPulledIn))
+                        .collect(Collectors.toList());
     }
 
-    private static List<ConnectedComponent> computeConnectedComponents(AbstractGraph<ObjectInfo> graph, NativeImageHeap heap, BigBang bb) {
-        ConnectedComponentsCollector connectedComponentsCollector = new ConnectedComponentsCollector(graph);
-        for (ObjectInfo node : graph.getRoots()) {
-            if (graph.inGraph(node) && connectedComponentsCollector.isNotVisited(node)) {
-                graph.dfs(node, connectedComponentsCollector);
+    private List<ConnectedComponent> computeConnectedComponents(NativeImageHeap heap) {
+        Set<ObjectInfo> allImageHeapObjects = getHashSetInstance();
+        allImageHeapObjects.addAll(heap.getObjects());
+
+        NativeImageHeap.PulledIn[] splitBy = {
+                        NativeImageHeap.PulledIn.ByInternedStringsTable,
+                        NativeImageHeap.PulledIn.ByImageCodeInfo,
+                        NativeImageHeap.PulledIn.ByDynamicHub,
+                        NativeImageHeap.PulledIn.ByMethod,
+                        NativeImageHeap.PulledIn.ByHostedField
+        };
+
+        List<ConnectedComponent> connectedComponents = new ArrayList<>();
+        for (NativeImageHeap.PulledIn whatsPulledIn : splitBy) {
+            Set<ObjectInfo> objectInfos = removeObjectsBy(whatsPulledIn, allImageHeapObjects);
+            if (whatsPulledIn != NativeImageHeap.PulledIn.ByDynamicHub) {
+                AbstractGraph<ObjectInfo> graph = constructGraph(objectInfos);
+                connectedComponents.addAll(computeConnectedComponentsInGraph(graph, whatsPulledIn));
             }
         }
 
-        return connectedComponentsCollector.getConnectedComponents()
-                        .stream().map(objects -> new ConnectedComponent(objects, heap))
+        return connectedComponents.stream()
                         .sorted(Comparator.comparing(ConnectedComponent::getSizeInBytes).reversed())
                         .collect(Collectors.toList());
     }
@@ -112,28 +141,10 @@ public class NativeImageHeapGraph {
             HeapHistogram objectHistogram = new HeapHistogram(out);
             connectedComponent.getObjects().forEach(o -> objectHistogram.add(o, o.getSize()));
             objectHistogram.printHeadings(
-                            String.format("Component=%d | Size=%s | Percentage of total image heap size=%.4f%%", i, Utils.bytesToHuman(connectedComponent.getSizeInBytes()),
+                            String.format("Component=%d | Size=%s | Percentage of total image heap size=%.4f%%", i,
+                                            Utils.bytesToHuman(connectedComponent.getSizeInBytes()),
                                             percentageOfTotalHeapSize));
             objectHistogram.print();
-// connectedComponent.getObjects().get(0).getAllReasons().stream().map(NativeImageHeapGraph::formatReason).forEach(out::println);
-// Set<String> uniqueReasons = new TreeSet<>();
-// for (ObjectInfo object : connectedComponent.getObjects()) {
-// if (isInternedStrings(object)) {
-// uniqueReasons.add(formatObject(object, bb));
-// }
-// if (object.getAllReasons().size() == 1) {
-// String formatedReason = String.format("%d=%s", i, formatObject(object.getMainReason(), bb));
-// uniqueReasons.add(formatedReason);
-// continue;
-// }
-// for (Object reason : object.getAllReasons()) {
-// if (!(reason instanceof ObjectInfo)) {
-// String formatedReason = String.format("%d=%s", i, formatObject(object.getMainReason(), bb));
-// uniqueReasons.add(formatedReason);
-// }
-// }
-// }
-// uniqueReasons.forEach(out::println);
             out.println();
         }
     }
@@ -156,7 +167,6 @@ public class NativeImageHeapGraph {
             return escape(JavaKind.Object.format(object));
         }
     }
-
 
     private final static class ListCollector<Node> implements AbstractGraph.NodeVisitor<Node> {
         private final List<Node> nodes = new ArrayList<>();
@@ -260,7 +270,7 @@ public class NativeImageHeapGraph {
             return !this.visited[id];
         }
 
-        public List<List<ObjectInfo>> getConnectedComponents() {
+        public List<List<ObjectInfo>> getListOfObjectsForEachComponent() {
             return connectedComponents;
         }
     }
@@ -307,7 +317,7 @@ public class NativeImageHeapGraph {
             return String.format("Method(%s)", reason);
         } else if (reason instanceof ObjectInfo) {
             ObjectInfo r = (ObjectInfo) reason;
-            return String.format("ObjectInfo(%s,%d,%s)", r.getObjectClass().getName(), r.getIdentityHashCode(), r.getPulledInBySet());
+            return String.format("ObjectInfo(%s,%d,%s)", r.getObjectClass().getName(), r.getIdentityHashCode(), r.getPulledInBySetAsString());
         } else if (reason instanceof HostedField) {
             HostedField r = (HostedField) reason;
             return r.format("HostedField(class %H { static %t %n; })");
@@ -317,94 +327,49 @@ public class NativeImageHeapGraph {
         }
     }
 
-
-    public void dumpImageHeap(PrintWriter out) {
-//        for (int i = 0; i < connectedComponents.size(); i++) {
-//            ConnectedComponent connectedComponent = connectedComponents.get(i);
-//            for (ObjectInfo info : connectedComponent.getObjects()) {
-//                out.printf("%d=ObjectInfo(%s,%d,%s,%s) <- %s\n", i, info.getObject().getClass(), info.getIdentityHashCode(), constantAsString(bb, info.getConstant()), info.getBelongsTo(),
-//                                formatObject(info.getMainReason(), bb));
-//            }
-//        }
+    public void dumpImageHeapObjectsInfo(PrintWriter out) {
+        out.println("ObjectInfo(objects class, objects identity hash code, constant value, category");
         for (ObjectInfo info : this.heap.getObjects()) {
-            out.printf("%d=ObjectInfo(%s,%d,%s,%s)\n", 0, info.getObjectClass().getName(), info.getIdentityHashCode(), constantAsString(bb, info.getConstant()), info.getPulledInBySet());
+            out.printf("ObjectInfo(%s,%d,%s,%s)\n", info.getObjectClass().getName(), info.getIdentityHashCode(), constantAsString(bb, info.getConstant()), info.getPulledInBySetAsString());
         }
     }
-    public void printObjectsReport(PrintWriter out) {
-//        for (int i = 0; i < connectedComponents.size(); i++) {
-//            ConnectedComponent connectedComponent = connectedComponents.get(i);
-//            for (ObjectInfo objectInfo : connectedComponent.getObjects()) {
-////                if (internalObject(objectInfo)) {
-////                    continue;
-////                }
-//                out.printf("%d=%s <- ", i, formatObject(objectInfo, bb));
-//                for (Object reason : objectInfo.getAllReasons()) {
-//                    out.printf("%d=%s; ", i, formatObject(reason, bb));
-//                }
-//                out.println();
-//            }
-//            out.println();
-//        }
 
-        for (ObjectInfo objectInfo : this.heap.getObjects()) {
-            out.printf("%d=%s <- ", 0, formatObject(objectInfo, bb));
-            for (Object reason : objectInfo.getAllReasons()) {
-                out.printf("%d=%s; ", 0, formatReason(reason));
+    public void printObjectInfosAndItsComponent(PrintWriter out) {
+        out.println("ConnectedComponentId=ObjectInfo(objects class, objects identity hash code, constant value, category");
+        for (int i = 0; i < connectedComponents.size(); i++) {
+            ConnectedComponent connectedComponent = connectedComponents.get(i);
+            for (ObjectInfo info : connectedComponent.getObjects()) {
+                out.printf("%d=ObjectInfo(%s,%d,%s,%s)\n", i, info.getObjectClass().getName(), info.getIdentityHashCode(), constantAsString(bb, info.getConstant()), info.getPulledInBySetAsString());
+            }
+        }
+// for (ObjectInfo info : this.heap.getObjects()) {
+// out.printf("%d=ObjectInfo(%s,%d,%s,%s)\n", 0, info.getObjectClass().getName(),
+// info.getIdentityHashCode(), constantAsString(bb, info.getConstant()),
+// info.getPulledInBySetAsString());
+// }
+    }
+
+    public void printObjectInfosAndReferencesToObjectInfoForEachComponented(PrintWriter out) {
+        out.println("ConnectedComponentId=ObjectInfo(objects class");
+        for (int i = 0; i < connectedComponents.size(); i++) {
+            ConnectedComponent connectedComponent = connectedComponents.get(i);
+            for (ObjectInfo objectInfo : connectedComponent.getObjects()) {
+                out.printf("%d=%s <- ", i, formatObject(objectInfo, bb));
+                for (Object reason : objectInfo.getAllReasons()) {
+                    out.printf("%d=%s; ", i, formatObject(reason, bb));
+                }
+                out.println();
             }
             out.println();
         }
     }
-
-    public void printComponentsImagePartitionHistogramReport(PrintWriter out) {
-        out.println("==========ImagePartitionStatistics per component=============");
-        out.println("CSp - Component size in Partition");
-        out.println("PS - Partition size");
-        out.println("F - Total space taken by component inside a partition");
-        for (ConnectedComponent connectedComponentInfo : connectedComponents) {
-            out.printf("\n=========Object: %s - | %s | IdentityHashCode: %d=========\n",
-                            connectedComponentInfo.getRoot().getClass(),
-                            Utils.bytesToHuman(connectedComponentInfo.getSizeInBytes()),
-                            connectedComponentInfo.getRoot().getIdentityHashCode());
-            out.printf("%-20s %-26s\n", "Partition", "CSp/PS=F");
-            for (Pair<ImageHeapPartition, Long> partitionInfo : connectedComponentInfo.getHistogram()) {
-                ImageHeapPartition partition = partitionInfo.getLeft();
-                long componentSizeInPartition = partitionInfo.getRight();
-                out.printf("%-20s %s/%s=%.4f\n",
-                                partition,
-                                Utils.bytesToHuman(componentSizeInPartition),
-                                Utils.bytesToHuman(partition.getSize()),
-                                (double) componentSizeInPartition / partition.getSize());
-            }
-        }
-    }
-
-    private static boolean mainReasonFilter(ObjectInfo info) {
-        String[] patterns = NativeImageHeapGraphFeature.Options.NativeImageHeapGraphRootFilter.getValue().split(",");
-        // Object reason = info.getMainReason();
-        for (Object reason : info.getAllReasons()) {
-            boolean result = false;
-            if (reason instanceof String) {
-                String r = (String) reason;
-                result = Arrays.stream(patterns).anyMatch(r::contains);
-            } else if (reason instanceof HostedField) {
-                HostedField r = (HostedField) reason;
-                result = Arrays.stream(patterns).anyMatch(p -> r.getDeclaringClass().getName().contains(p));
-            }
-            if (result) {
-                return true;
-            }
-        }
-        return false;
-    }
-
 
     private String formatObject(Object reason, BigBang bb) {
         if (reason instanceof String) {
             return String.format("Method(%s)", reason);
         } else if (reason instanceof ObjectInfo) {
             ObjectInfo r = (ObjectInfo) reason;
-            return String.format("ObjectInfo(%s, %d, %s, %b)", r.getObjectClass().getName(), r.getIdentityHashCode(), constantAsString(bb, r.getConstant()),
-                    this.heap.isKnownImmutable(r));
+            return String.format("ObjectInfo(%s, %d, %s)", r.getObjectClass().getName(), r.getIdentityHashCode(), constantAsString(bb, r.getConstant()));
         } else if (reason instanceof HostedField) {
             HostedField r = (HostedField) reason;
             return r.format("HostedField(class %H { static %t %n; })");
@@ -418,13 +383,15 @@ public class NativeImageHeapGraph {
         private final List<ObjectInfo> objects;
         private final long size;
         private final List<ImageHeapPartition> partitions;
+        private NativeImageHeap.PulledIn whatsPulledIn;
         private final long[] componentSizeInPartition;
         private final Set<Object> reasons;
 
-        public ConnectedComponent(List<ObjectInfo> objects, NativeImageHeap heap) {
+        public ConnectedComponent(List<ObjectInfo> objects, NativeImageHeap heap, NativeImageHeap.PulledIn whatsPulledIn) {
             this.objects = objects;
             this.size = computeComponentSize(objects);
             this.partitions = Arrays.asList(heap.getLayouter().getPartitions());
+            this.whatsPulledIn = whatsPulledIn;
             this.componentSizeInPartition = new long[partitions.size()];
             this.reasons = Collections.newSetFromMap(new IdentityHashMap<>());
             for (ObjectInfo object : objects) {
@@ -433,6 +400,10 @@ public class NativeImageHeapGraph {
                 if (index >= 0) // filler objects might not be added to any partition
                     componentSizeInPartition[index] += object.getSize();
             }
+        }
+
+        public NativeImageHeap.PulledIn getWhatsPulledIn() {
+            return whatsPulledIn;
         }
 
         public Set<Object> getReasons() {
