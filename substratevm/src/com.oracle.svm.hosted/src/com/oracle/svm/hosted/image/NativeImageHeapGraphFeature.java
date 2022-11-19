@@ -7,30 +7,27 @@ import com.oracle.svm.core.feature.InternalFeature;
 import com.oracle.svm.core.option.HostedOptionKey;
 import com.oracle.svm.core.util.VMError;
 import com.oracle.svm.hosted.FeatureImpl;
+import com.oracle.svm.hosted.ProgressReporter;
+import org.graalvm.collections.Pair;
 import org.graalvm.compiler.options.Option;
 import org.graalvm.compiler.options.OptionType;
 
 import java.io.File;
+import java.io.PrintWriter;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.function.Consumer;
 
 @AutomaticallyRegisteredFeature
 public class NativeImageHeapGraphFeature implements InternalFeature {
     public static class Options {
 
         // TODO(mspasic): change to false before committing the final version
-        @Option(help = {}, type = OptionType.Debug)
-        public static final HostedOptionKey<Boolean> DumpNativeImageHeapReport = new HostedOptionKey<>(true);
+        @Option(help = {}, type = OptionType.Debug) public static final HostedOptionKey<Boolean> NativeImageHeapReports = new HostedOptionKey<>(true);
 
-        @Option(help = {}, type = OptionType.Debug)
-        public static final HostedOptionKey<Integer> NativeImageHeapGraphNumOfComponents = new HostedOptionKey<>(0);
-
-        @Option(help = {}, type = OptionType.Debug)
-        public static final HostedOptionKey<String> NativeImageHeapGraphRootFilter = new HostedOptionKey<>("");
-
-        @Option(help = {}, type = OptionType.Debug)
-        public static final HostedOptionKey<String> ImageHeapObjectTypeFilter = new HostedOptionKey<>("");
-
-        @Option(help = {}, type = OptionType.Debug)
-        public static final HostedOptionKey<Float> NativeImageHeapGraphComponentMBSizeThreshold = new HostedOptionKey<>(0.0f);
+        @Option(help = {}, type = OptionType.Debug) public static final HostedOptionKey<String> NativeImageHeapGraphRootFilter = new HostedOptionKey<>("");
     }
 
     private AbstractImage image;
@@ -38,53 +35,61 @@ public class NativeImageHeapGraphFeature implements InternalFeature {
 
     @Override
     public boolean isInConfiguration(IsInConfigurationAccess access) {
-        return Options.DumpNativeImageHeapReport.getValue();
+        return Options.NativeImageHeapReports.getValue();
     }
 
     @Override
     public void afterHeapLayout(AfterHeapLayoutAccess a) {
-        testConnectedComponents();;
-        testGraph();
         FeatureImpl.AfterHeapLayoutAccessImpl access = (FeatureImpl.AfterHeapLayoutAccessImpl) a;
         this.heap = access.getHeap();
     }
 
     @Override
     public void beforeImageWrite(BeforeImageWriteAccess access) {
-        this.image = ((FeatureImpl.BeforeImageWriteAccessImpl)access).getImage();
+        this.image = ((FeatureImpl.BeforeImageWriteAccessImpl) access).getImage();
     }
 
     @Override
     public void afterImageWrite(AfterImageWriteAccess a) {
         FeatureImpl.AfterImageWriteAccessImpl access = (FeatureImpl.AfterImageWriteAccessImpl) a;
-        NativeImageHeapGraph graph = new NativeImageHeapGraph(heap, this.image.getImageHeapSize());
+        NativeImageHeapGraph graph = new NativeImageHeapGraph(heap, access.getUniverse().getBigBang(), image);
+        System.out.println("Writing reports...");
+        long start = System.currentTimeMillis();
+        String imageName = access.getImagePath().getFileName().toString();
         {
-            String reportName = "image_heap_connected_components_" + access.getImagePath().getFileName().toString();
+            String reportName = "connected_components_histograms_" + imageName;
             File file = ReportUtils.reportFile(SubstrateOptions.reportsPath(), reportName, "txt");
             ReportUtils.report(reportName, file.toPath(), graph::printConnectedComponentsHistogramsAndEntryPoints);
         }
         {
-            String reportName = "image_heap_objects_and_references_" + access.getImagePath().getFileName().toString();
+            String reportName = "references_for_objects_image_heap_" + imageName;
             File file = ReportUtils.reportFile(SubstrateOptions.reportsPath(), reportName, "txt");
-            ReportUtils.report(reportName, file.toPath(), graph::printObjectInfosAndReferencesToObjectInfoForEachComponented);
-        }
-
-        {
-            String reportName = "image_heap_objects_and_component_" + access.getImagePath().getFileName().toString();
-            File file = ReportUtils.reportFile(SubstrateOptions.reportsPath(), reportName, "txt");
-            ReportUtils.report(reportName, file.toPath(), graph::printObjectInfosAndItsComponent);
+            ReportUtils.report(reportName, file.toPath(), graph::printObjectsAndReferencesForEachComponent);
         }
         {
-            String reportName = "image_heap_dump_" + access.getImagePath().getFileName().toString();
+            String reportName = "objects_in_components_image_heap_" + imageName;
             File file = ReportUtils.reportFile(SubstrateOptions.reportsPath(), reportName, "txt");
-            ReportUtils.report(reportName, file.toPath(), graph::dumpImageHeapObjectsInfo);
+            ReportUtils.report(reportName, file.toPath(), graph::printObjectsForEachComponent);
         }
         {
-            String reportName = "image_heap_entry_points_" + access.getImagePath().getFileName().toString();
+            String reportName = "all_objects_image_heap_" + imageName;
+            File file = ReportUtils.reportFile(SubstrateOptions.reportsPath(), reportName, "txt");
+            ReportUtils.report(reportName, file.toPath(), graph::printAllImageHeapObjects);
+        }
+        {
+            String reportName = "entry_points_image_heap_" + imageName;
             File file = ReportUtils.reportFile(SubstrateOptions.reportsPath(), reportName, "txt");
             ReportUtils.report(reportName, file.toPath(), graph::printEntryPointsReport);
         }
+        {
+            String reportName = "partitions_image_heap_" + imageName;
+            File file = ReportUtils.reportFile(SubstrateOptions.reportsPath(), reportName, "txt");
+            ReportUtils.report(reportName, file.toPath(), graph::printImagePartitionsReport);
+        }
+        long end = System.currentTimeMillis();
+        System.out.printf("Reports written in: %fs\n", (end - start) / 1000.0f);
     }
+
     private static void testGraph() {
         DirectedGraph<Integer> graph = new DirectedGraph<>();
         Integer a = 0;
@@ -103,7 +108,7 @@ public class NativeImageHeapGraphFeature implements InternalFeature {
     }
 
     private static void testConnectedComponents() {
-        DirectedGraph<Integer> graph = new DirectedGraph<>();
+        UndirectedGraph<Integer> graph = new UndirectedGraph<>();
         Integer a = 0;
         Integer b = 1;
         Integer c = 2;
@@ -117,6 +122,6 @@ public class NativeImageHeapGraphFeature implements InternalFeature {
         Integer f = 5;
         Integer g = 6;
         graph.connect(e, f);
-
+        graph.connect(g, g);
     }
 }
