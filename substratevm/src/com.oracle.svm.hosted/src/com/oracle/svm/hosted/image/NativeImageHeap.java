@@ -34,13 +34,13 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Deque;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.TreeSet;
 
 import com.oracle.svm.core.code.ImageCodeInfo;
 import com.oracle.svm.core.hub.DynamicHubCompanion;
@@ -717,45 +717,50 @@ public final class NativeImageHeap implements ImageHeap {
 
     private final int imageHeapOffsetInAddressSpace = Heap.getHeap().getImageHeapOffsetInAddressSpace();
 
-    public enum PulledIn {
-        ByInternedStringsTable,
-        ByDynamicHub,
-        ByMethod,
-        ByHostedField,
-        ByStaticObjectFields,
-        ByStaticPrimitiveFields,
-        ByImageCodeInfo,
-        ByOther;
+    public enum BelongsToObjectGroup {
+        BelongsToInternedStringsTable,
+        BelongsToDynamicHub,
+        BelongsToMethod,
+        HostedField,
+        StaticObjectFields,
+        StaticPrimitiveFields,
+        BelongsToImageCodeInfo,
+        Other;
 
-        public static PulledIn value(Object reason) {
+
+        public static EnumSet<BelongsToObjectGroup> getForObjectInfo(ObjectInfo object) {
+            EnumSet<BelongsToObjectGroup> result = EnumSet.noneOf(BelongsToObjectGroup.class);
+            if (object.getObjectClass().equals(ImageCodeInfo.class)) {
+                result.add(BelongsToImageCodeInfo);
+            }
+            if (object.getObject().getClass().equals(DynamicHub.class) || object.getObject().getClass().equals(DynamicHubCompanion.class)) {
+                result.add(BelongsToDynamicHub);
+            }
+            for (Object reason : object.getAllReasons()) {
+                result.addAll(BelongsToObjectGroup.getForReason(reason));
+            }
+            return result;
+        }
+
+        public static EnumSet<BelongsToObjectGroup> getForReason(Object reason) {
             if (reason instanceof String) {
                 if (reason.toString().equals("internedStrings table")) {
-                    return ByInternedStringsTable;
+                    return EnumSet.of(BelongsToInternedStringsTable);
                 }
                 if (reason.toString().equals("staticObjectFields")) {
-                    return ByStaticObjectFields;
+                    return EnumSet.of(StaticObjectFields);
                 }
                 if (reason.toString().equals("staticPrimitiveFields")) {
-                    return ByStaticPrimitiveFields;
+                    return EnumSet.of(StaticPrimitiveFields);
                 }
-                return ByMethod;
+                return EnumSet.of(BelongsToMethod);
             } else if (reason instanceof HostedField) {
-                return ByHostedField;
+                return EnumSet.of(HostedField);
             } else if (reason instanceof ObjectInfo) {
-                ObjectInfo info = (ObjectInfo) reason;
-                if (info.getObjectClass().equals(ImageCodeInfo.class)) {
-                    return ByImageCodeInfo;
-                }
-                if (info.getPulledInSet().contains(ByInternedStringsTable)) {
-                    return ByInternedStringsTable;
-                }
-                if (info.getObject().getClass().equals(DynamicHub.class)
-                        || info.getObject().getClass().equals(DynamicHubCompanion.class)) {
-                    return ByDynamicHub;
-                }
-                return info.pulledInBy();
+                ObjectInfo r = (ObjectInfo) reason;
+                return r.getBelongsToObjectGroup();
             }
-            return ByOther;
+            return EnumSet.of(Other);
         }
     }
 
@@ -776,8 +781,8 @@ public final class NativeImageHeap implements ImageHeap {
          */
         private final Object firstReason;
         private final Set<Object> allReasons;
-        private PulledIn pulledIn;
-        private final Set<PulledIn> pulledInSet;
+        private final EnumSet<BelongsToObjectGroup> belongsToObjectGroupSet;
+
         ObjectInfo(Object object, long size, HostedClass clazz, int identityHashCode, Object reason) {
             this(SubstrateObjectConstant.forObject(object), size, clazz, identityHashCode, reason);
         }
@@ -792,40 +797,21 @@ public final class NativeImageHeap implements ImageHeap {
             this.firstReason = reason;
             this.allReasons = Collections.newSetFromMap(new HashMap<>());
             this.allReasons.add(reason);
-
-            this.pulledInSet = new TreeSet<>();
-            this.pulledIn = PulledIn.value(reason);
-            this.pulledInSet.add(this.pulledIn);
-            if (reason instanceof ObjectInfo) {
-                ObjectInfo r = (ObjectInfo) reason;
-                this.pulledInSet.addAll(r.getPulledInSet());
-            }
-            if (getObjectClass().equals(ImageCodeInfo.class)) {
-                this.pulledIn = PulledIn.ByImageCodeInfo;
-                this.pulledInSet.add(PulledIn.ByImageCodeInfo);
-            }
-//            else {
-//                this.pulledIn = PulledIn.value(reason);
-//            }
-//            this.pulledInSet.add(this.pulledIn);
+            this.belongsToObjectGroupSet = BelongsToObjectGroup.getForObjectInfo(this);
         }
 
-        public Set<PulledIn> getPulledInSet() {
-            return pulledInSet;
+        public EnumSet<BelongsToObjectGroup> getBelongsToObjectGroup() {
+            return belongsToObjectGroupSet;
         }
 
-        public boolean isPulledInBy(PulledIn reason) {
-            return pulledInSet.contains(reason);
-        }
-
-        public PulledIn pulledInBy() {
-            return this.pulledIn;
+        public boolean belongsTo(BelongsToObjectGroup group) {
+            return belongsToObjectGroupSet.contains(group);
         }
 
         public String getPulledInBySetAsString() {
             StringBuilder builder = new StringBuilder();
-            builder.append("PulledIn{");
-            for (PulledIn belongs : pulledInSet) {
+            builder.append("BelongsToObjectGroup{");
+            for (BelongsToObjectGroup belongs : belongsToObjectGroupSet) {
                 builder.append(belongs);
                 builder.append(" ");
             }
@@ -835,10 +821,10 @@ public final class NativeImageHeap implements ImageHeap {
 
         public void addReason(Object reason) {
             this.allReasons.add(reason);
-            this.pulledInSet.add(PulledIn.value(reason));
+            this.belongsToObjectGroupSet.addAll(BelongsToObjectGroup.getForReason(reason));
             if (reason instanceof ObjectInfo) {
                 ObjectInfo r = (ObjectInfo) reason;
-                this.pulledInSet.addAll(r.getPulledInSet());
+                this.belongsToObjectGroupSet.addAll(r.getBelongsToObjectGroup());
             }
         }
 

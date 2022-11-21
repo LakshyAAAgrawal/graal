@@ -53,29 +53,28 @@ public class NativeImageHeapGraph {
         Set<ObjectInfo> allImageHeapObjects = getHashSetInstance();
         allImageHeapObjects.addAll(heap.getObjects());
 
-        NativeImageHeap.PulledIn[] splitBy = {
-                        NativeImageHeap.PulledIn.ByInternedStringsTable,
-                        NativeImageHeap.PulledIn.ByDynamicHub,
-                        NativeImageHeap.PulledIn.ByImageCodeInfo,
-                        NativeImageHeap.PulledIn.ByMethod,
-                        NativeImageHeap.PulledIn.ByHostedField
+        NativeImageHeap.BelongsToObjectGroup[] splitBy = {
+                        NativeImageHeap.BelongsToObjectGroup.BelongsToInternedStringsTable,
+                        NativeImageHeap.BelongsToObjectGroup.BelongsToDynamicHub,
+                        NativeImageHeap.BelongsToObjectGroup.BelongsToImageCodeInfo,
+                        NativeImageHeap.BelongsToObjectGroup.BelongsToMethod,
+                        NativeImageHeap.BelongsToObjectGroup.HostedField
         };
 
         List<ConnectedComponent> connectedComponents = new ArrayList<>();
-        for (NativeImageHeap.PulledIn whatsPulledIn : splitBy) {
-            Set<ObjectInfo> objectInfos = removeObjectsBy(whatsPulledIn, allImageHeapObjects);
-            if (whatsPulledIn != NativeImageHeap.PulledIn.ByDynamicHub && whatsPulledIn != NativeImageHeap.PulledIn.ByInternedStringsTable) {
+        for (NativeImageHeap.BelongsToObjectGroup whatsBelongsToObjectGroup : splitBy) {
+            Set<ObjectInfo> objectInfos = removeObjectsBy(whatsBelongsToObjectGroup, allImageHeapObjects);
+            if (whatsBelongsToObjectGroup != NativeImageHeap.BelongsToObjectGroup.BelongsToDynamicHub && whatsBelongsToObjectGroup != NativeImageHeap.BelongsToObjectGroup.BelongsToInternedStringsTable) {
                 AbstractGraph<ObjectInfo> graph = constructGraph(objectInfos);
-                connectedComponents.addAll(computeConnectedComponentsInGraph(graph, whatsPulledIn));
+                connectedComponents.addAll(computeConnectedComponentsInGraph(graph, whatsBelongsToObjectGroup));
             }
         }
-
         return connectedComponents.stream()
                         .sorted(Comparator.comparing(ConnectedComponent::getSizeInBytes).reversed())
                         .collect(Collectors.toList());
     }
 
-    private List<ConnectedComponent> computeConnectedComponentsInGraph(AbstractGraph<ObjectInfo> graph, NativeImageHeap.PulledIn whatsPulledIn) {
+    private List<ConnectedComponent> computeConnectedComponentsInGraph(AbstractGraph<ObjectInfo> graph, NativeImageHeap.BelongsToObjectGroup whatsBelongsToObjectGroup) {
         ConnectedComponentsCollector collector = new ConnectedComponentsCollector(graph);
         for (ObjectInfo node : graph.getRoots()) {
             if (collector.isNotVisited(node)) {
@@ -88,11 +87,11 @@ public class NativeImageHeapGraph {
                         .collect(Collectors.toList());
     }
 
-    private static Set<ObjectInfo> removeObjectsBy(NativeImageHeap.PulledIn reason, Set<ObjectInfo> objects) {
+    private static Set<ObjectInfo> removeObjectsBy(NativeImageHeap.BelongsToObjectGroup reason, Set<ObjectInfo> objects) {
         Set<ObjectInfo> result = getHashSetInstance();
         for (Iterator<ObjectInfo> iterator = objects.iterator(); iterator.hasNext();) {
             ObjectInfo o = iterator.next();
-            if (o.isPulledInBy(reason)) {
+            if (o.belongsTo(reason)) {
                 result.add(o);
                 iterator.remove();
             }
@@ -180,7 +179,6 @@ public class NativeImageHeapGraph {
                                     Utils.bytesToHuman(connectedComponent.getSizeInBytes()),
                                     percentageOfTotalHeapSize));
             objectHistogram.print();
-            out.println();
         }
     }
 
