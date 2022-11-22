@@ -717,7 +717,7 @@ public final class NativeImageHeap implements ImageHeap {
 
     private final int imageHeapOffsetInAddressSpace = Heap.getHeap().getImageHeapOffsetInAddressSpace();
 
-    public enum BelongsToObjectGroup {
+    public enum ObjectGroup {
         BelongsToInternedStringsTable,
         BelongsToDynamicHub,
         BelongsToMethod,
@@ -728,8 +728,8 @@ public final class NativeImageHeap implements ImageHeap {
         Other;
 
 
-        public static EnumSet<BelongsToObjectGroup> getForObjectInfo(ObjectInfo object) {
-            EnumSet<BelongsToObjectGroup> result = EnumSet.noneOf(BelongsToObjectGroup.class);
+        public static EnumSet<ObjectGroup> getForObjectInfo(ObjectInfo object) {
+            EnumSet<ObjectGroup> result = EnumSet.noneOf(ObjectGroup.class);
             if (object.getObjectClass().equals(ImageCodeInfo.class)) {
                 result.add(BelongsToImageCodeInfo);
             }
@@ -737,12 +737,12 @@ public final class NativeImageHeap implements ImageHeap {
                 result.add(BelongsToDynamicHub);
             }
             for (Object reason : object.getAllReasons()) {
-                result.addAll(BelongsToObjectGroup.getForReason(reason));
+                result.addAll(ObjectGroup.getForReason(reason));
             }
             return result;
         }
 
-        public static EnumSet<BelongsToObjectGroup> getForReason(Object reason) {
+        public static EnumSet<ObjectGroup> getForReason(Object reason) {
             if (reason instanceof String) {
                 if (reason.toString().equals("internedStrings table")) {
                     return EnumSet.of(BelongsToInternedStringsTable);
@@ -758,7 +758,12 @@ public final class NativeImageHeap implements ImageHeap {
                 return EnumSet.of(HostedField);
             } else if (reason instanceof ObjectInfo) {
                 ObjectInfo r = (ObjectInfo) reason;
-                return r.getBelongsToObjectGroup();
+
+                EnumSet<ObjectGroup> result = r.getBelongsToObjectGroup();
+                if (r.isInternedStringsTable()) {
+                    result.add(BelongsToInternedStringsTable);
+                }
+                return result;
             }
             return EnumSet.of(Other);
         }
@@ -770,6 +775,7 @@ public final class NativeImageHeap implements ImageHeap {
         private final HostedClass clazz;
         private final long size;
         private final int identityHashCode;
+        private boolean isInternedString;
         private ImageHeapPartition partition;
         private long offsetInPartition;
         /**
@@ -781,7 +787,8 @@ public final class NativeImageHeap implements ImageHeap {
          */
         private final Object firstReason;
         private final Set<Object> allReasons;
-        private final EnumSet<BelongsToObjectGroup> belongsToObjectGroupSet;
+        private final EnumSet<ObjectGroup> objectGroupSet;
+        private boolean isRootObject = true;
 
         ObjectInfo(Object object, long size, HostedClass clazz, int identityHashCode, Object reason) {
             this(SubstrateObjectConstant.forObject(object), size, clazz, identityHashCode, reason);
@@ -797,21 +804,56 @@ public final class NativeImageHeap implements ImageHeap {
             this.firstReason = reason;
             this.allReasons = Collections.newSetFromMap(new HashMap<>());
             this.allReasons.add(reason);
-            this.belongsToObjectGroupSet = BelongsToObjectGroup.getForObjectInfo(this);
+            this.objectGroupSet = ObjectGroup.getForObjectInfo(this);
+            this.isInternedString = false;
+            if (reason instanceof ObjectInfo) {
+                this.isRootObject = false;
+//                ObjectInfo r = (ObjectInfo) reason;
+//                if (r.isInternedString() || r.belongsTo(ObjectGroup.BelongsToInternedStringsTable)) {
+//                    this.objectGroupSet.add(ObjectGroup.BelongsToInternedStringsTable);
+//                }
+            }
         }
 
-        public EnumSet<BelongsToObjectGroup> getBelongsToObjectGroup() {
-            return belongsToObjectGroupSet;
+        public EnumSet<ObjectGroup> getBelongsToObjectGroup() {
+            return objectGroupSet;
+        }
+        public boolean isRootObject() { return isRootObject; }
+
+        public boolean belongsTo(ObjectGroup group) {
+            return objectGroupSet.contains(group);
         }
 
-        public boolean belongsTo(BelongsToObjectGroup group) {
-            return belongsToObjectGroupSet.contains(group);
+        public boolean isInternedStringsTable() {
+            return this.firstReason.toString().equals("internedStrings table");
+        }
+
+        public void preprocessInternedStringObjects(NativeImageHeap heap) {
+            if (heap.internedStrings.containsKey(SubstrateObjectConstant.asObject(String.class, constant))) {
+                this.isInternedString = true;
+                this.objectGroupSet.add(ObjectGroup.BelongsToInternedStringsTable);
+            }
+
+            // DynamicHubs?
+            // ImageCodeInfo?
+            // Resources?
+        }
+
+        public void preprocessInternedStringBytes(NativeImageHeap heap) {
+            if (getMainReason() instanceof ObjectInfo && ((ObjectInfo)getMainReason()).isInternedString) {
+                this.objectGroupSet.add(ObjectGroup.BelongsToInternedStringsTable);
+                // Byte array for interned string
+            }
+        }
+
+        public boolean isInternedString() {
+            return isInternedString;
         }
 
         public String getPulledInBySetAsString() {
             StringBuilder builder = new StringBuilder();
-            builder.append("BelongsToObjectGroup{");
-            for (BelongsToObjectGroup belongs : belongsToObjectGroupSet) {
+            builder.append("ObjectGroup{");
+            for (ObjectGroup belongs : objectGroupSet) {
                 builder.append(belongs);
                 builder.append(" ");
             }
@@ -821,10 +863,11 @@ public final class NativeImageHeap implements ImageHeap {
 
         public void addReason(Object reason) {
             this.allReasons.add(reason);
-            this.belongsToObjectGroupSet.addAll(BelongsToObjectGroup.getForReason(reason));
+            this.objectGroupSet.addAll(ObjectGroup.getForReason(reason));
             if (reason instanceof ObjectInfo) {
                 ObjectInfo r = (ObjectInfo) reason;
-                this.belongsToObjectGroupSet.addAll(r.getBelongsToObjectGroup());
+//                this.objectGroupSet.addAll(r.getBelongsToObjectGroup());
+                this.isRootObject = false;
             }
         }
 

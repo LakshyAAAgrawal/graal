@@ -86,6 +86,11 @@ public class NativeImageHeapGraphFeature implements InternalFeature {
             File file = ReportUtils.reportFile(SubstrateOptions.reportsPath(), reportName, "txt");
             ReportUtils.report(reportName, file.toPath(), graph::printImagePartitionsReport);
         }
+        {
+            String reportName = "connected_component_sizes_" + imageName;
+            File file = ReportUtils.reportFile(SubstrateOptions.reportsPath(), reportName, "txt");
+            ReportUtils.report(reportName, file.toPath(), graph::dumpConnectedComponentSizes);
+        }
         long end = System.currentTimeMillis();
         System.out.printf("Reports written in: %fs\n", (end - start) / 1000.0f);
     }

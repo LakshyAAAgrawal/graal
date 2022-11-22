@@ -98,7 +98,7 @@ public class HeapHistogram {
 
     public void printHeadings(final String title) {
         assert NativeImageOptions.PrintHeapHistogram.getValue();
-        out.format("\n%s\n", title);
+        out.format("%s\n", title);
         out.format(headerFormat, "Count", "Size", "Size%", "Cum%", "Class");
     }
 
