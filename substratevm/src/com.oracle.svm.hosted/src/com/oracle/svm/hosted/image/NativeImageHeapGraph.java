@@ -250,7 +250,7 @@ public class NativeImageHeapGraph {
             }
             if (!methods.isEmpty()) {
                 // TODO(mspasic):  method acccess points
-                out.printf("\nComponent %d method constant access:\n", i);
+                out.printf("\nMethods accessing connected component %d:\n", i);
                 for (String methodName : methods.stream().limit(entryPointLimit).collect(Collectors.toList())) {
                     out.printf("\t%s\n", formatMethodAsLink(methodName));
                 }
