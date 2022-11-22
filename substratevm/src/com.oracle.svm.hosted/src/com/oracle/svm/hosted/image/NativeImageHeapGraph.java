@@ -268,11 +268,11 @@ public class NativeImageHeapGraph {
         out.printf("\"InternedStrings\":%d,\n", computeTotalSize(groups.get(NativeImageHeap.ObjectGroup.BelongsToInternedStringsTable)));
         out.printf("\"Components\":[");
         for (ConnectedComponent connectedComponent : connectedComponents) {
-            out.println(connectedComponent.getSizeInBytes());
-            out.println(",");
+            out.print(connectedComponent.getSizeInBytes());
+            out.print(",");
         }
-        out.printf("]");
-        out.printf("}");
+        out.println("]");
+        out.println("}");
     }
 
     private static Set<String> getMethodAccess(Collection<ObjectInfo> objects) {
