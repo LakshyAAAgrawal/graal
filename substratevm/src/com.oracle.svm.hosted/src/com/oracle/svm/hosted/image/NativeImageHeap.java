@@ -41,6 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import com.oracle.svm.core.code.ImageCodeInfo;
 import com.oracle.svm.core.hub.DynamicHubCompanion;
@@ -702,6 +703,10 @@ public final class NativeImageHeap implements ImageHeap {
         return internedStrings.containsKey(value);
     }
 
+    public String[] getInternedStringsTable() {
+        return internedStrings.keySet().toArray(new String[0]);
+    }
+
     static class AddObjectData {
 
         AddObjectData(JavaConstant original, boolean immutableFromParent, Object reason) {
@@ -815,6 +820,33 @@ public final class NativeImageHeap implements ImageHeap {
             }
         }
 
+        public List<String> getStringReasons() {
+            List<String> result = new ArrayList<>();
+            for (Object reason : getAllReasons()) {
+                if (reason instanceof String) {
+                    result.add((String)reason);
+                }
+            }
+            return result;
+        }
+        public List<HostedField> getHostedFieldsReasons() {
+            List<HostedField> result = new ArrayList<>();
+            for (Object reason : getAllReasons()) {
+                if (reason instanceof HostedField) {
+                    result.add((HostedField) reason);
+                }
+            }
+            return result;
+        }
+        public List<ObjectInfo> getObjectInfoReasons() {
+            List<ObjectInfo> result = new ArrayList<>();
+            for (Object reason : getAllReasons()) {
+                if (reason instanceof ObjectInfo) {
+                    result.add((ObjectInfo) reason);
+                }
+            }
+            return result;
+        }
         public EnumSet<ObjectGroup> getBelongsToObjectGroup() {
             return objectGroupSet;
         }

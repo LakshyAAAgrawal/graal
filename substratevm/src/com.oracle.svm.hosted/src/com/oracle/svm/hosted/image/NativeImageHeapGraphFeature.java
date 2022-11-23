@@ -7,18 +7,10 @@ import com.oracle.svm.core.feature.InternalFeature;
 import com.oracle.svm.core.option.HostedOptionKey;
 import com.oracle.svm.core.util.VMError;
 import com.oracle.svm.hosted.FeatureImpl;
-import com.oracle.svm.hosted.ProgressReporter;
-import org.graalvm.collections.Pair;
 import org.graalvm.compiler.options.Option;
 import org.graalvm.compiler.options.OptionType;
 
 import java.io.File;
-import java.io.PrintWriter;
-import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.function.Consumer;
 
 @AutomaticallyRegisteredFeature
 public class NativeImageHeapGraphFeature implements InternalFeature {
@@ -77,9 +69,9 @@ public class NativeImageHeapGraphFeature implements InternalFeature {
             ReportUtils.report(reportName, file.toPath(), graph::printAllImageHeapObjects);
         }
         {
-            String reportName = "entry_points_image_heap_" + imageName;
+            String reportName = "main_entry_points_image_heap_" + imageName;
             File file = ReportUtils.reportFile(SubstrateOptions.reportsPath(), reportName, "txt");
-            ReportUtils.report(reportName, file.toPath(), graph::printEntryPointsReport);
+            ReportUtils.report(reportName, file.toPath(), graph::printMainEntryPointsReport);
         }
         {
             String reportName = "partitions_image_heap_" + imageName;
@@ -91,6 +83,27 @@ public class NativeImageHeapGraphFeature implements InternalFeature {
             File file = ReportUtils.reportFile(SubstrateOptions.reportsPath(), reportName, "txt");
             ReportUtils.report(reportName, file.toPath(), graph::dumpConnectedComponentSizes);
         }
+        {
+            String reportName = "dynamic_hubs_objects_dump_" + imageName;
+            File file = ReportUtils.reportFile(SubstrateOptions.reportsPath(), reportName, "txt");
+            ReportUtils.report(reportName, file.toPath(), graph::dumpDynamicHubObjects);
+        }
+        {
+            String reportName = "image_code_info_objects_dump_" + imageName;
+            File file = ReportUtils.reportFile(SubstrateOptions.reportsPath(), reportName, "txt");
+            ReportUtils.report(reportName, file.toPath(), graph::dumpImageCodeInfoObjects);
+        }
+        {
+            String reportName = "interned_strings_table_objects_dump_" + imageName;
+            File file = ReportUtils.reportFile(SubstrateOptions.reportsPath(), reportName, "txt");
+            ReportUtils.report(reportName, file.toPath(), graph::dumpInternedStringsTableObjects);
+        }
+        {
+            String reportName = "interned_strings_table_values_dump_" + imageName;
+            File file = ReportUtils.reportFile(SubstrateOptions.reportsPath(), reportName, "txt");
+            ReportUtils.report(reportName, file.toPath(), graph::dumpInternedStringsValues);
+        }
+
         long end = System.currentTimeMillis();
         System.out.printf("Reports written in: %fs\n", (end - start) / 1000.0f);
     }

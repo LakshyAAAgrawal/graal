@@ -149,7 +149,7 @@ public class ReportUtils {
             try (FileWriter fw = new FileWriter(Files.createFile(file).toFile())) {
                 try (PrintWriter writer = new PrintWriter(fw)) {
                     if (enablePrint) {
-                        System.out.println("# Printing " + description + " to: " + file);
+                        System.out.println("# Printing " + description + " to: " + file.toUri());
                     }
                     reporter.accept(writer);
                 }
@@ -204,7 +204,7 @@ public class ReportUtils {
             Path file = reportDir.resolve(fileName);
             try (OutputStream fos = Files.newOutputStream(file, StandardOpenOption.CREATE, StandardOpenOption.WRITE,
                             append ? StandardOpenOption.APPEND : StandardOpenOption.TRUNCATE_EXISTING)) {
-                System.out.println("# Printing " + description + " to: " + file);
+                System.out.println("# Printing " + description + " to: " + file.toUri());
                 reporter.accept(fos);
                 fos.flush();
             }
