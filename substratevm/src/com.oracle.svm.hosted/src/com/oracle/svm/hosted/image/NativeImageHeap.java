@@ -723,6 +723,7 @@ public final class NativeImageHeap implements ImageHeap {
     private final int imageHeapOffsetInAddressSpace = Heap.getHeap().getImageHeapOffsetInAddressSpace();
 
     public enum ObjectGroup {
+        BelongsToResources,
         BelongsToInternedStringsTable,
         BelongsToDynamicHub,
         BelongsToMethod,
