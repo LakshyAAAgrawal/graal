@@ -252,7 +252,7 @@ public class NativeImageHeapGraph {
         long dynamicHubsSizeInBytes = groups.get(NativeImageHeap.ObjectGroup.BelongsToDynamicHub).sizeInBytes;
         long internedStringsSizeInBytes = groups.get(NativeImageHeap.ObjectGroup.BelongsToInternedStringsTable).sizeInBytes;
         long resourcesSizeInBytes = groups.get(NativeImageHeap.ObjectGroup.BelongsToResources).sizeInBytes;
-        long theRest = totalHeapSizeInBytes - dynamicHubsSizeInBytes - internedStringsSizeInBytes - imageCodeInfoSizeInBytes;
+        long theRest = totalHeapSizeInBytes - dynamicHubsSizeInBytes - internedStringsSizeInBytes - imageCodeInfoSizeInBytes - resourcesSizeInBytes;
         out.printf("\tImage code info size: %s\n", Utils.bytesToHuman(imageCodeInfoSizeInBytes));
         out.printf("\tDynamic hubs size: %s\n", Utils.bytesToHuman(dynamicHubsSizeInBytes));
         out.printf("\tInterned strings size: %s\n", Utils.bytesToHuman(internedStringsSizeInBytes));
