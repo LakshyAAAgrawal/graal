@@ -7,6 +7,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumMap;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -34,11 +36,13 @@ public class NativeImageHeapGraph {
     private final long totalHeapSizeInBytes;
     private final List<ConnectedComponent> connectedComponents;
     private final BigBang bb;
+    private final AbstractImage image;
+    private final String imageName;
 
     private static class GroupEntry {
         public final Set<ObjectInfo> objects;
         public final long sizeInBytes;
-
+        private static final HashSet<Integer> alreadySeen = new HashSet<>() ;
         public GroupEntry(Set<ObjectInfo> objects) {
             this.objects = objects;
             this.sizeInBytes = computeTotalSize(objects);
@@ -51,20 +55,21 @@ public class NativeImageHeapGraph {
         return new UndirectedGraph<>();
     }
 
-    public NativeImageHeapGraph(NativeImageHeap heap, BigBang bigBang, AbstractImage image) {
+    public NativeImageHeapGraph(NativeImageHeap heap, BigBang bigBang, AbstractImage image, String imageName) {
         System.out.println("\nConstructing Native Image Heap Graph: ... ");
         long start = System.currentTimeMillis();
         this.heap = heap;
-        this.heap.getObjects().forEach(o -> o.preprocessInternedStringObjects(this.heap));
-        this.heap.getObjects().forEach(o -> o.preprocessInternedStringBytes(this.heap));
-
+        this.image = image;
+        this.imageName = imageName;
         this.totalHeapSizeInBytes = image.getImageHeapSize();
         this.bb = bigBang;
         this.groups = new EnumMap<>(NativeImageHeap.ObjectGroup.class);
         this.connectedComponents = computeConnectedComponents(this.heap);
         long end = System.currentTimeMillis();
-
         System.out.printf("Computed in: %.4fs\n", (end - start) / 1000.0f);
+        System.out.println(this.totalHeapSizeInBytes);
+        long computed = computeTotalSize(this.heap.getObjects());
+        System.out.println(computed);
     }
 
     private static <T> Set<T> getHashSetInstance() {
@@ -98,10 +103,8 @@ public class NativeImageHeapGraph {
         for (NativeImageHeap.ObjectGroup objectGroup : objectGroups) {
             Set<ObjectInfo> objects = removeObjectsBy(objectGroup, allImageHeapObjects, heap);
             groups.put(objectGroup, new GroupEntry(objects));
-            if (objectGroup != NativeImageHeap.ObjectGroup.BelongsToImageCodeInfo
-                    && objectGroup != NativeImageHeap.ObjectGroup.BelongsToDynamicHub
-                    && objectGroup != NativeImageHeap.ObjectGroup.BelongsToInternedStringsTable
-                    && objectGroup != NativeImageHeap.ObjectGroup.BelongsToResources) {
+            if (objectGroup != NativeImageHeap.ObjectGroup.BelongsToImageCodeInfo && objectGroup != NativeImageHeap.ObjectGroup.BelongsToDynamicHub &&
+                            objectGroup != NativeImageHeap.ObjectGroup.BelongsToInternedStringsTable && objectGroup != NativeImageHeap.ObjectGroup.BelongsToResources) {
                 AbstractGraph<ObjectInfo> graph = constructGraph(objects);
                 connectedComponents.addAll(computeConnectedComponentsInGraph(graph, objectGroup));
             }
@@ -133,6 +136,7 @@ public class NativeImageHeapGraph {
                 if (info != null) {
                     objects.remove(info);
                     result.add(info);
+                    System.out.printf("%d ObjectInfo=%d arr=%d\n", info.getIdentityHashCode(), info.getSize(), arr.length);
                 }
             }
         }
@@ -143,7 +147,18 @@ public class NativeImageHeapGraph {
         if (reason == NativeImageHeap.ObjectGroup.BelongsToResources) {
             return removeResources(objects, heap);
         }
+
         Set<ObjectInfo> result = getHashSetInstance();
+        if (reason == NativeImageHeap.ObjectGroup.BelongsToInternedStringsTable) {
+            for (ObjectInfo info : objects) {
+                if (info.isInternedStringsTable()) {
+                    result.add(info);
+                    objects.remove(info);
+                    return result;
+                }
+            }
+        }
+
         for (Iterator<ObjectInfo> iterator = objects.iterator(); iterator.hasNext();) {
             ObjectInfo o = iterator.next();
             if (o.belongsTo(reason)) {
@@ -179,17 +194,8 @@ public class NativeImageHeapGraph {
         TreeSet<String> entryPoints = new TreeSet<>();
         for (int i = 0, connectedComponentsSize = connectedComponents.size(); i < connectedComponentsSize; i++) {
             ConnectedComponent connectedComponent = connectedComponents.get(i);
-            for (ObjectInfo objectInfo : connectedComponent.getObjects()) {
-                if (!(objectInfo.getMainReason() instanceof ObjectInfo)) {
-                    entryPoints.add("EntryPoint: " + formatReason(objectInfo.getMainReason()));
-                } else {
-                    for (Object reason : objectInfo.getAllReasons()) {
-                        if (!(reason instanceof ObjectInfo)) {
-                            entryPoints.add("OtherReason: " + formatReason(reason));
-                        }
-                    }
-                }
-            }
+            entryPoints.addAll(getMethodAccess(connectedComponent.getObjects()));
+            getHostedFieldsAccess(connectedComponent.getObjects()).forEach(h -> entryPoints.add(formatReason(h)));
             for (String entryPoint : entryPoints) {
                 out.printf("ComponentId=%d=%s\n", i, entryPoint);
             }
@@ -240,6 +246,7 @@ public class NativeImageHeapGraph {
         String title = "Native image heap connected components report";
 
         out.println(fillHeading(title));
+        out.println(fillHeading(imageName));
         out.printf("Total Heap Size: %s\n", Utils.bytesToHuman(totalHeapSizeInBytes));
         long imageCodeInfoSizeInBytes = groups.get(NativeImageHeap.ObjectGroup.BelongsToImageCodeInfo).sizeInBytes;
         long dynamicHubsSizeInBytes = groups.get(NativeImageHeap.ObjectGroup.BelongsToDynamicHub).sizeInBytes;
@@ -249,7 +256,7 @@ public class NativeImageHeapGraph {
         out.printf("\tImage code info size: %s\n", Utils.bytesToHuman(imageCodeInfoSizeInBytes));
         out.printf("\tDynamic hubs size: %s\n", Utils.bytesToHuman(dynamicHubsSizeInBytes));
         out.printf("\tInterned strings size: %s\n", Utils.bytesToHuman(internedStringsSizeInBytes));
-        out.printf("\tResources: %s\n", Utils.bytesToHuman(resourcesSizeInBytes));
+        out.printf("\tResources byte arrays size: %s\n", Utils.bytesToHuman(resourcesSizeInBytes));
         out.printf("\tIn connected components report: %s\n", Utils.bytesToHuman(theRest));
         out.printf("Total number of objects in the heap: %d\n", this.heap.getObjects().size());
         out.printf("Number of connected components in the report %d", this.connectedComponents.size());
@@ -305,10 +312,12 @@ public class NativeImageHeapGraph {
         long reachableFromImageCodeInfo = groups.get(NativeImageHeap.ObjectGroup.BelongsToImageCodeInfo).sizeInBytes;
         long reachableFromDynamicHubs = groups.get(NativeImageHeap.ObjectGroup.BelongsToImageCodeInfo).sizeInBytes;
         long reachableFromInternedStrings = groups.get(NativeImageHeap.ObjectGroup.BelongsToInternedStringsTable).sizeInBytes;
-        long componentsSize = this.totalHeapSizeInBytes - reachableFromDynamicHubs - reachableFromInternedStrings - reachableFromImageCodeInfo;
+        long resourcesByteArrays = groups.get(NativeImageHeap.ObjectGroup.BelongsToResources).sizeInBytes;
+        long componentsSize = this.totalHeapSizeInBytes - reachableFromDynamicHubs - reachableFromInternedStrings - reachableFromImageCodeInfo - resourcesByteArrays;
         out.printf("\"ImageCodeInfo\":%d,\n", reachableFromImageCodeInfo);
         out.printf("\"DynamicHubs\":%d,\n", reachableFromDynamicHubs);
         out.printf("\"InternedStrings\":%d,\n", reachableFromInternedStrings);
+        out.printf("\"ResourcesByteArrays\":%d,\n", resourcesByteArrays);
         out.printf("\"ComponentsTotalSize:\":%d,", componentsSize);
         out.printf("\"Components\":[");
         for (int i = 0; i < connectedComponents.size(); i++) {
@@ -324,14 +333,11 @@ public class NativeImageHeapGraph {
     private static Set<String> getMethodAccess(Collection<ObjectInfo> objects) {
         Set<String> methods = new TreeSet<>();
         for (ObjectInfo object : objects) {
-            if (object.getMainReason() instanceof String) {
-                methods.add((String) object.getMainReason());
-            } else {
-                for (Object reason : object.getAllReasons()) {
-                    if (reason instanceof String) { // TODO(mspasic): eliminate dataSection,
-                                                    // staticFields...
-                        methods.add((String) reason);
-                    }
+            for (Object reason : object.getAllReasons()) {
+                if (reason instanceof String) {
+                    if (reason.equals("dataSection") || reason.equals("staticObjectFields") || reason.equals("staticPrimitiveFields"))
+                        continue;
+                    methods.add((String) reason);
                 }
             }
         }

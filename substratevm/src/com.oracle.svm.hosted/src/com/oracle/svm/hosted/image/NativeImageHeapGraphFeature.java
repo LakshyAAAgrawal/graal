@@ -44,10 +44,10 @@ public class NativeImageHeapGraphFeature implements InternalFeature {
     @Override
     public void afterImageWrite(AfterImageWriteAccess a) {
         FeatureImpl.AfterImageWriteAccessImpl access = (FeatureImpl.AfterImageWriteAccessImpl) a;
-        NativeImageHeapGraph graph = new NativeImageHeapGraph(heap, access.getUniverse().getBigBang(), image);
+        String imageName = access.getImagePath().getFileName().toString();
+        NativeImageHeapGraph graph = new NativeImageHeapGraph(heap, access.getUniverse().getBigBang(), image, imageName);
         System.out.println("Writing reports...");
         long start = System.currentTimeMillis();
-        String imageName = access.getImagePath().getFileName().toString();
         {
             String reportName = "connected_components_histograms_" + imageName;
             File file = ReportUtils.reportFile(SubstrateOptions.reportsPath(), reportName, "txt");
@@ -69,7 +69,7 @@ public class NativeImageHeapGraphFeature implements InternalFeature {
             ReportUtils.report(reportName, file.toPath(), graph::printAllImageHeapObjects);
         }
         {
-            String reportName = "main_entry_points_image_heap_" + imageName;
+            String reportName = "entry_points_image_heap_" + imageName;
             File file = ReportUtils.reportFile(SubstrateOptions.reportsPath(), reportName, "txt");
             ReportUtils.report(reportName, file.toPath(), graph::printMainEntryPointsReport);
         }

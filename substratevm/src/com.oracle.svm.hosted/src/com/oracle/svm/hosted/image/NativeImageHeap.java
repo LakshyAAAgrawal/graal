@@ -766,9 +766,9 @@ public final class NativeImageHeap implements ImageHeap {
                 ObjectInfo r = (ObjectInfo) reason;
 
                 EnumSet<ObjectGroup> result = r.getBelongsToObjectGroup();
-                if (r.isInternedStringsTable()) {
-                    result.add(BelongsToInternedStringsTable);
-                }
+//                if (r.isInternedStringsTable()) {
+//                    result.add(BelongsToInternedStringsTable);
+//                }
                 return result;
             }
             return EnumSet.of(Other);
