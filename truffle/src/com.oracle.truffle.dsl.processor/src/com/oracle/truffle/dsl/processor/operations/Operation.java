@@ -47,6 +47,8 @@ import static com.oracle.truffle.dsl.processor.operations.OperationGeneratorUtil
 
 import java.util.List;
 
+import javax.lang.model.element.TypeElement;
+import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 
@@ -55,6 +57,7 @@ import com.oracle.truffle.dsl.processor.java.model.CodeTree;
 import com.oracle.truffle.dsl.processor.java.model.CodeTreeBuilder;
 import com.oracle.truffle.dsl.processor.java.model.CodeTypeMirror;
 import com.oracle.truffle.dsl.processor.java.model.CodeVariableElement;
+import com.oracle.truffle.dsl.processor.java.model.GeneratedTypeMirror;
 import com.oracle.truffle.dsl.processor.operations.instructions.FrameKind;
 import com.oracle.truffle.dsl.processor.operations.instructions.Instruction;
 import com.oracle.truffle.dsl.processor.operations.instructions.Instruction.EmitArguments;
@@ -916,7 +919,8 @@ public abstract class Operation {
 
         @Override
         public List<TypeMirror> getBuilderArgumentTypes() {
-            return List.of(ProcessorContext.getInstance().getType(Class.class));
+            DeclaredType classType = ProcessorContext.getInstance().getDeclaredType(Class.class);
+            return List.of(new CodeTypeMirror.DeclaredCodeTypeMirror((TypeElement) classType.asElement(), List.of(new GeneratedTypeMirror("", "? extends Tag"))));
         }
 
         @Override
@@ -927,8 +931,11 @@ public abstract class Operation {
             CodeVariableElement varStartLabel = new CodeVariableElement(context.labelType, "startLabel");
             CodeVariableElement varEndLabel = new CodeVariableElement(context.labelType, "endLabel");
 
-            // todo
-            b.declaration("int", varCurInstrumentId.getName(), "0");
+            b.declaration("int", varCurInstrumentId.getName(), "instrumentList.size()");
+            b.declaration("InstrumentTreeNode", "_itn", "new InstrumentTreeNode(arg0, bci)");
+            b.statement("instrumentList.add(_itn)");
+            b.statement("instrumentStack.get(instrumentStack.size() - 1).add(_itn)");
+            b.statement("instrumentStack.add(new ArrayList<>())");
             b.declaration(context.labelType, varStartLabel.getName(), createCreateLabel());
             b.declaration(context.labelType, varEndLabel.getName(), createCreateLabel());
 
@@ -938,7 +945,12 @@ public abstract class Operation {
             b.tree(createSetAux(vars, AUX_START_LABEL, CodeTreeBuilder.singleVariable(varStartLabel)));
             b.tree(createSetAux(vars, AUX_END_LABEL, CodeTreeBuilder.singleVariable(varEndLabel)));
 
-            b.tree(createEmitBranchInstruction(vars, startInstruction, varCurInstrumentId));
+            EmitArguments args = new EmitArguments();
+            args.instruments = new CodeTree[]{
+                            CodeTreeBuilder.singleVariable(varCurInstrumentId)
+            };
+
+            b.tree(createEmitInstruction(vars, startInstruction, args));
 
             if (context.getData().isTracing()) {
                 b.statement("isBbStart[bci] = true");
@@ -952,12 +964,25 @@ public abstract class Operation {
         public CodeTree createEndCode(BuilderVariables vars) {
             CodeTreeBuilder b = CodeTreeBuilder.createBuilder();
 
+            b.startStatement().startCall("instrumentList.get");
+            b.tree(createGetAux(vars, AUX_ID, new CodeTypeMirror(TypeKind.INT)));
+            b.end();
+            b.string(".setChildren(instrumentStack.remove(instrumentStack.size() - 1).toArray(new InstrumentTreeNode[0]))");
+            b.end();
+
+            EmitArguments args = new EmitArguments();
+            args.instruments = new CodeTree[]{
+                            createGetAux(vars, AUX_ID, new CodeTypeMirror(TypeKind.INT))
+            };
+
             b.startIf().variable(vars.lastChildPushCount).string(" != 0").end();
             b.startBlock();
-            b.tree(createEmitBranchInstruction(vars, endInstruction, createGetAux(vars, AUX_ID, new CodeTypeMirror(TypeKind.INT))));
+            b.tree(createEmitInstruction(vars, endInstruction, args));
             b.end().startElseBlock();
-            b.tree(createEmitBranchInstruction(vars, endVoidInstruction, createGetAux(vars, AUX_ID, new CodeTypeMirror(TypeKind.INT))));
+            b.tree(createEmitInstruction(vars, endVoidInstruction, args));
             b.end();
+
+            b.tree(createEmitLabel(vars, createGetAux(vars, AUX_END_LABEL, context.labelType)));
 
             b.tree(super.createEndCode(vars));
             return b.build();
@@ -967,11 +992,16 @@ public abstract class Operation {
         public CodeTree createLeaveCode(BuilderVariables vars) {
             CodeTreeBuilder b = CodeTreeBuilder.createBuilder();
 
-            // b.tree(createEmitInstruction(vars, leaveInstruction,
-            // createGetAux(vars, AUX_ID, new CodeTypeMirror(TypeKind.INT)),
-            // createGetAux(vars, AUX_START_LABEL, builder.labelType),
-            // createGetAux(vars, AUX_END_LABEL, builder.labelType)));
-            // todo
+            EmitArguments args = new EmitArguments();
+            args.instruments = new CodeTree[]{
+                            createGetAux(vars, AUX_ID, new CodeTypeMirror(TypeKind.INT))
+            };
+            args.branchTargets = new CodeTree[]{
+                            createGetAux(vars, AUX_START_LABEL, context.labelType),
+                            createGetAux(vars, AUX_END_LABEL, context.labelType),
+            };
+
+            b.tree(createEmitInstruction(vars, leaveInstruction, args));
 
             return b.build();
         }

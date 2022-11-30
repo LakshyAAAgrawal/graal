@@ -223,7 +223,7 @@ public final class SLLanguage extends TruffleLanguage<SLContext> {
     private final Shape rootShape;
 
     @Option(help = "Use the SL interpreter implemented using the Truffle Operations DSL", category = OptionCategory.EXPERT, stability = OptionStability.EXPERIMENTAL) //
-    public static final OptionKey<Boolean> UseOperations = new OptionKey<>(false);
+    public static final OptionKey<Boolean> UseOperations = new OptionKey<>(true);
 
     private boolean useOperations;
 

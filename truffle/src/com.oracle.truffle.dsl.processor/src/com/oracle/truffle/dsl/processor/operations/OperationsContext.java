@@ -161,8 +161,8 @@ public class OperationsContext {
 
         add(new Operation.InstrumentTag(this, operationId++,
                         add(new InstrumentationEnterInstruction(this, instructionId++)),
-                        add(new InstrumentationExitInstruction(this, instructionId++)),
                         add(new InstrumentationExitInstruction(this, instructionId++, true)),
+                        add(new InstrumentationExitInstruction(this, instructionId++)),
                         add(new InstrumentationLeaveInstruction(this, instructionId++))));
     }
 

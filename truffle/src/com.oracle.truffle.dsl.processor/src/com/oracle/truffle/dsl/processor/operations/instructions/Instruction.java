@@ -84,6 +84,7 @@ public abstract class Instruction {
         public CodeTree[] branchTargets;
         public CodeTree variadicCount;
         public CodeTree[] arguments;
+        public CodeTree[] instruments;
     }
 
     protected final ProcessorContext context = ProcessorContext.getInstance();
@@ -353,7 +354,7 @@ public abstract class Instruction {
     }
 
     public CodeTree createInstrument(ExecutionVariables vars, int index) {
-        return createIndirectIndex(vars, INSTRUMENT_OFFSET_SUFFIX, index);
+        return createDirectIndex(vars, INSTRUMENT_OFFSET_SUFFIX, index, false);
     }
 
     public CodeTree createLength() {
@@ -387,6 +388,10 @@ public abstract class Instruction {
 
     public int numBranchTargets() {
         return branchTargets.size();
+    }
+
+    public int numInstruments() {
+        return instruments.size();
     }
 
     public boolean splitOnBoxingElimination() {
@@ -562,12 +567,10 @@ public abstract class Instruction {
             b.end();
         }
 
-        if (!instruments.isEmpty()) {
-            b.startStatement().variable(vars.bc).string("[").variable(vars.bci).string(" + " + getChildrenOffset() + "] = (short) ");
-            b.string("numInstrumentNodes");
+        for (int i = 0; i < instruments.size(); i++) {
+            b.startStatement().variable(vars.bc).string("[").variable(vars.bci).string(" + " + getInstrumentsOffset() + " + " + i + "] = (short) (int) ");
+            b.tree(args.instruments[i]);
             b.end();
-
-            b.statement("numInstrumentNodes += " + instruments.size());
         }
 
         // superinstructions
@@ -761,6 +764,11 @@ public abstract class Instruction {
         for (int i = 0; i < branchTargets.size(); i++) {
             int ci = i;
             createAddArgument(b, "BRANCH_OFFSET", () -> b.cast(context.getType(int.class)).tree(createBranchTargetIndex(vars, ci, false)));
+        }
+
+        for (int i = 0; i < instruments.size(); i++) {
+            int ci = i;
+            createAddArgument(b, "INSTRUMENT", () -> b.cast(context.getTypes().InstrumentTreeNode).string("$this.instruments[").tree(createInstrument(vars, ci)).string("]"));
         }
 
         b.end(3); // arg array, instr array, stmt

@@ -786,7 +786,7 @@ public final class SLOperationRootNodeGen extends SLOperationRootNode implements
         }
 
         @Override
-        OperationIntrospection getIntrospectionData(short[] $bc, ExceptionHandler[] $handlers, Object[] $consts, OperationNodesImpl nodes, int[] sourceInfo) {
+        OperationIntrospection getIntrospectionData(SLOperationRootNodeGen $this, short[] $bc, ExceptionHandler[] $handlers, Object[] $consts, OperationNodesImpl nodes, int[] sourceInfo) {
             int $bci = 0;
             ArrayList<Object[]> target = new ArrayList<>();
             while ($bci < $bc.length) {
@@ -10221,7 +10221,7 @@ public final class SLOperationRootNodeGen extends SLOperationRootNode implements
         }
 
         @Override
-        OperationIntrospection getIntrospectionData(short[] $bc, ExceptionHandler[] $handlers, Object[] $consts, OperationNodesImpl nodes, int[] sourceInfo) {
+        OperationIntrospection getIntrospectionData(SLOperationRootNodeGen $this, short[] $bc, ExceptionHandler[] $handlers, Object[] $consts, OperationNodesImpl nodes, int[] sourceInfo) {
             int $bci = 0;
             ArrayList<Object[]> target = new ArrayList<>();
             while ($bci < $bc.length) {
@@ -11837,7 +11837,6 @@ public final class SLOperationRootNodeGen extends SLOperationRootNode implements
         private static Object SLAdd_executeUncached_(VirtualFrame $frame, SLOperationRootNodeGen $this, short[] $bc, int $bci, int $sp, Object[] $consts, Node[] $children, Object $child0Value, Object $child1Value) {
             int childArrayOffset_;
             int constArrayOffset_;
-            CompilerDirectives.transferToInterpreterAndInvalidate();
             if (SLTypesGen.isImplicitSLBigNumber($child0Value)) {
                 SLBigNumber $child0Value_ = SLTypesGen.asImplicitSLBigNumber($child0Value);
                 if (SLTypesGen.isImplicitSLBigNumber($child1Value)) {
@@ -11854,7 +11853,6 @@ public final class SLOperationRootNodeGen extends SLOperationRootNode implements
         private static Object SLDiv_executeUncached_(VirtualFrame $frame, SLOperationRootNodeGen $this, short[] $bc, int $bci, int $sp, Object[] $consts, Node[] $children, Object $child0Value, Object $child1Value) {
             int childArrayOffset_;
             int constArrayOffset_;
-            CompilerDirectives.transferToInterpreterAndInvalidate();
             if (SLTypesGen.isImplicitSLBigNumber($child0Value)) {
                 SLBigNumber $child0Value_ = SLTypesGen.asImplicitSLBigNumber($child0Value);
                 if (SLTypesGen.isImplicitSLBigNumber($child1Value)) {
@@ -11868,7 +11866,6 @@ public final class SLOperationRootNodeGen extends SLOperationRootNode implements
         private static Object SLEqual_executeUncached_(VirtualFrame $frame, SLOperationRootNodeGen $this, short[] $bc, int $bci, int $sp, Object[] $consts, Node[] $children, Object $child0Value, Object $child1Value) {
             int childArrayOffset_;
             int constArrayOffset_;
-            CompilerDirectives.transferToInterpreterAndInvalidate();
             if ($child0Value instanceof Long) {
                 long $child0Value_ = (long) $child0Value;
                 if ($child1Value instanceof Long) {
@@ -11921,7 +11918,6 @@ public final class SLOperationRootNodeGen extends SLOperationRootNode implements
         private static Object SLLessOrEqual_executeUncached_(VirtualFrame $frame, SLOperationRootNodeGen $this, short[] $bc, int $bci, int $sp, Object[] $consts, Node[] $children, Object $child0Value, Object $child1Value) {
             int childArrayOffset_;
             int constArrayOffset_;
-            CompilerDirectives.transferToInterpreterAndInvalidate();
             if ($child0Value instanceof Long) {
                 long $child0Value_ = (long) $child0Value;
                 if ($child1Value instanceof Long) {
@@ -11942,7 +11938,6 @@ public final class SLOperationRootNodeGen extends SLOperationRootNode implements
         private static Object SLLessThan_executeUncached_(VirtualFrame $frame, SLOperationRootNodeGen $this, short[] $bc, int $bci, int $sp, Object[] $consts, Node[] $children, Object $child0Value, Object $child1Value) {
             int childArrayOffset_;
             int constArrayOffset_;
-            CompilerDirectives.transferToInterpreterAndInvalidate();
             if ($child0Value instanceof Long) {
                 long $child0Value_ = (long) $child0Value;
                 if ($child1Value instanceof Long) {
@@ -11963,7 +11958,6 @@ public final class SLOperationRootNodeGen extends SLOperationRootNode implements
         private static Object SLLogicalNot_executeUncached_(VirtualFrame $frame, SLOperationRootNodeGen $this, short[] $bc, int $bci, int $sp, Object[] $consts, Node[] $children, Object $child0Value) {
             int childArrayOffset_;
             int constArrayOffset_;
-            CompilerDirectives.transferToInterpreterAndInvalidate();
             if ($child0Value instanceof Boolean) {
                 boolean $child0Value_ = (boolean) $child0Value;
                 return SLLogicalNotNode.doBoolean($child0Value_);
@@ -11974,7 +11968,6 @@ public final class SLOperationRootNodeGen extends SLOperationRootNode implements
         private static Object SLMul_executeUncached_(VirtualFrame $frame, SLOperationRootNodeGen $this, short[] $bc, int $bci, int $sp, Object[] $consts, Node[] $children, Object $child0Value, Object $child1Value) {
             int childArrayOffset_;
             int constArrayOffset_;
-            CompilerDirectives.transferToInterpreterAndInvalidate();
             if (SLTypesGen.isImplicitSLBigNumber($child0Value)) {
                 SLBigNumber $child0Value_ = SLTypesGen.asImplicitSLBigNumber($child0Value);
                 if (SLTypesGen.isImplicitSLBigNumber($child1Value)) {
@@ -11988,7 +11981,6 @@ public final class SLOperationRootNodeGen extends SLOperationRootNode implements
         private static Object SLReadProperty_executeUncached_(VirtualFrame $frame, SLOperationRootNodeGen $this, short[] $bc, int $bci, int $sp, Object[] $consts, Node[] $children, Object $child0Value, Object $child1Value) {
             int childArrayOffset_;
             int constArrayOffset_;
-            CompilerDirectives.transferToInterpreterAndInvalidate();
             if (((INTEROP_LIBRARY_.getUncached($child0Value)).hasArrayElements($child0Value))) {
                 return SLReadPropertyNode.readArray($child0Value, $child1Value, ($this), ($bci), (INTEROP_LIBRARY_.getUncached($child0Value)), (INTEROP_LIBRARY_.getUncached($child1Value)));
             }
@@ -12005,7 +11997,6 @@ public final class SLOperationRootNodeGen extends SLOperationRootNode implements
         private static Object SLSub_executeUncached_(VirtualFrame $frame, SLOperationRootNodeGen $this, short[] $bc, int $bci, int $sp, Object[] $consts, Node[] $children, Object $child0Value, Object $child1Value) {
             int childArrayOffset_;
             int constArrayOffset_;
-            CompilerDirectives.transferToInterpreterAndInvalidate();
             if (SLTypesGen.isImplicitSLBigNumber($child0Value)) {
                 SLBigNumber $child0Value_ = SLTypesGen.asImplicitSLBigNumber($child0Value);
                 if (SLTypesGen.isImplicitSLBigNumber($child1Value)) {
@@ -12019,7 +12010,6 @@ public final class SLOperationRootNodeGen extends SLOperationRootNode implements
         private static Object SLWriteProperty_executeUncached_(VirtualFrame $frame, SLOperationRootNodeGen $this, short[] $bc, int $bci, int $sp, Object[] $consts, Node[] $children, Object $child0Value, Object $child1Value, Object $child2Value) {
             int childArrayOffset_;
             int constArrayOffset_;
-            CompilerDirectives.transferToInterpreterAndInvalidate();
             if (((INTEROP_LIBRARY_.getUncached($child0Value)).hasArrayElements($child0Value))) {
                 return SLWritePropertyNode.writeArray($child0Value, $child1Value, $child2Value, ($this), ($bci), (INTEROP_LIBRARY_.getUncached($child0Value)), (INTEROP_LIBRARY_.getUncached($child1Value)));
             }
@@ -12036,7 +12026,6 @@ public final class SLOperationRootNodeGen extends SLOperationRootNode implements
         private static Object SLUnbox_executeUncached_(VirtualFrame $frame, SLOperationRootNodeGen $this, short[] $bc, int $bci, int $sp, Object[] $consts, Node[] $children, Object $child0Value) {
             int childArrayOffset_;
             int constArrayOffset_;
-            CompilerDirectives.transferToInterpreterAndInvalidate();
             if ($child0Value instanceof String) {
                 String $child0Value_ = (String) $child0Value;
                 return SLUnboxNode.fromString($child0Value_, (FromJavaStringNode.getUncached()));
@@ -12071,7 +12060,6 @@ public final class SLOperationRootNodeGen extends SLOperationRootNode implements
         private static Object SLFunctionLiteral_executeUncached_(VirtualFrame $frame, SLOperationRootNodeGen $this, short[] $bc, int $bci, int $sp, Object[] $consts, Node[] $children, Object $child0Value) {
             int childArrayOffset_;
             int constArrayOffset_;
-            CompilerDirectives.transferToInterpreterAndInvalidate();
             if ($child0Value instanceof TruffleString) {
                 TruffleString $child0Value_ = (TruffleString) $child0Value;
                 return SLFunctionLiteralNode.perform($child0Value_, (SLFunctionLiteralNode.lookupFunction($child0Value_, $this)), ($this));
@@ -12082,7 +12070,6 @@ public final class SLOperationRootNodeGen extends SLOperationRootNode implements
         private static Object SLToBoolean_executeUncached_(VirtualFrame $frame, SLOperationRootNodeGen $this, short[] $bc, int $bci, int $sp, Object[] $consts, Node[] $children, Object $child0Value) {
             int childArrayOffset_;
             int constArrayOffset_;
-            CompilerDirectives.transferToInterpreterAndInvalidate();
             if ($child0Value instanceof Boolean) {
                 boolean $child0Value_ = (boolean) $child0Value;
                 return SLToBooleanNode.doBoolean($child0Value_);
@@ -12093,7 +12080,6 @@ public final class SLOperationRootNodeGen extends SLOperationRootNode implements
         private static Object SLInvoke_executeUncached_(VirtualFrame $frame, SLOperationRootNodeGen $this, short[] $bc, int $bci, int $sp, Object[] $consts, Node[] $children, int $numVariadics, Object $child0Value, Object[] $variadicChildValue) {
             int childArrayOffset_;
             int constArrayOffset_;
-            CompilerDirectives.transferToInterpreterAndInvalidate();
             if ($child0Value instanceof SLFunction) {
                 SLFunction $child0Value_ = (SLFunction) $child0Value;
                 return SLInvoke.doIndirect($child0Value_, $variadicChildValue, (IndirectCallNode.getUncached()));
@@ -12104,7 +12090,6 @@ public final class SLOperationRootNodeGen extends SLOperationRootNode implements
         private static boolean SLAnd_executeUncached_(VirtualFrame $frame, SLOperationRootNodeGen $this, short[] $bc, int $bci, int $sp, Object[] $consts, Node[] $children, Object $child0Value) {
             int childArrayOffset_;
             int constArrayOffset_;
-            CompilerDirectives.transferToInterpreterAndInvalidate();
             if ($child0Value instanceof Boolean) {
                 boolean $child0Value_ = (boolean) $child0Value;
                 return SLToBooleanNode.doBoolean($child0Value_);
@@ -12115,7 +12100,6 @@ public final class SLOperationRootNodeGen extends SLOperationRootNode implements
         private static boolean SLOr_executeUncached_(VirtualFrame $frame, SLOperationRootNodeGen $this, short[] $bc, int $bci, int $sp, Object[] $consts, Node[] $children, Object $child0Value) {
             int childArrayOffset_;
             int constArrayOffset_;
-            CompilerDirectives.transferToInterpreterAndInvalidate();
             if ($child0Value instanceof Boolean) {
                 boolean $child0Value_ = (boolean) $child0Value;
                 return SLToBooleanNode.doBoolean($child0Value_);
@@ -12126,7 +12110,6 @@ public final class SLOperationRootNodeGen extends SLOperationRootNode implements
         private static Object SLUnbox_q_FromBigNumber_executeUncached_(VirtualFrame $frame, SLOperationRootNodeGen $this, short[] $bc, int $bci, int $sp, Object[] $consts, Node[] $children, Object $child0Value) {
             int childArrayOffset_;
             int constArrayOffset_;
-            CompilerDirectives.transferToInterpreterAndInvalidate();
             if ($child0Value instanceof String) {
                 String $child0Value_ = (String) $child0Value;
                 return SLUnboxNode.fromString($child0Value_, (FromJavaStringNode.getUncached()));
@@ -12161,7 +12144,6 @@ public final class SLOperationRootNodeGen extends SLOperationRootNode implements
         private static Object SLUnbox_q_FromBigNumber_FromLong_executeUncached_(VirtualFrame $frame, SLOperationRootNodeGen $this, short[] $bc, int $bci, int $sp, Object[] $consts, Node[] $children, Object $child0Value) {
             int childArrayOffset_;
             int constArrayOffset_;
-            CompilerDirectives.transferToInterpreterAndInvalidate();
             if ($child0Value instanceof String) {
                 String $child0Value_ = (String) $child0Value;
                 return SLUnboxNode.fromString($child0Value_, (FromJavaStringNode.getUncached()));
@@ -12196,7 +12178,6 @@ public final class SLOperationRootNodeGen extends SLOperationRootNode implements
         private static Object SLUnbox_q_FromLong_executeUncached_(VirtualFrame $frame, SLOperationRootNodeGen $this, short[] $bc, int $bci, int $sp, Object[] $consts, Node[] $children, Object $child0Value) {
             int childArrayOffset_;
             int constArrayOffset_;
-            CompilerDirectives.transferToInterpreterAndInvalidate();
             if ($child0Value instanceof String) {
                 String $child0Value_ = (String) $child0Value;
                 return SLUnboxNode.fromString($child0Value_, (FromJavaStringNode.getUncached()));
@@ -12231,7 +12212,6 @@ public final class SLOperationRootNodeGen extends SLOperationRootNode implements
         private static Object SLUnbox_q_FromBoolean_executeUncached_(VirtualFrame $frame, SLOperationRootNodeGen $this, short[] $bc, int $bci, int $sp, Object[] $consts, Node[] $children, Object $child0Value) {
             int childArrayOffset_;
             int constArrayOffset_;
-            CompilerDirectives.transferToInterpreterAndInvalidate();
             if ($child0Value instanceof String) {
                 String $child0Value_ = (String) $child0Value;
                 return SLUnboxNode.fromString($child0Value_, (FromJavaStringNode.getUncached()));
@@ -12266,7 +12246,6 @@ public final class SLOperationRootNodeGen extends SLOperationRootNode implements
         private static Object SLAdd_q_Add0_executeUncached_(VirtualFrame $frame, SLOperationRootNodeGen $this, short[] $bc, int $bci, int $sp, Object[] $consts, Node[] $children, Object $child0Value, Object $child1Value) {
             int childArrayOffset_;
             int constArrayOffset_;
-            CompilerDirectives.transferToInterpreterAndInvalidate();
             if (SLTypesGen.isImplicitSLBigNumber($child0Value)) {
                 SLBigNumber $child0Value_ = SLTypesGen.asImplicitSLBigNumber($child0Value);
                 if (SLTypesGen.isImplicitSLBigNumber($child1Value)) {
@@ -12283,7 +12262,6 @@ public final class SLOperationRootNodeGen extends SLOperationRootNode implements
         private static Object SLReadProperty_q_ReadSLObject0_executeUncached_(VirtualFrame $frame, SLOperationRootNodeGen $this, short[] $bc, int $bci, int $sp, Object[] $consts, Node[] $children, Object $child0Value, Object $child1Value) {
             int childArrayOffset_;
             int constArrayOffset_;
-            CompilerDirectives.transferToInterpreterAndInvalidate();
             if (((INTEROP_LIBRARY_.getUncached($child0Value)).hasArrayElements($child0Value))) {
                 return SLReadPropertyNode.readArray($child0Value, $child1Value, ($this), ($bci), (INTEROP_LIBRARY_.getUncached($child0Value)), (INTEROP_LIBRARY_.getUncached($child1Value)));
             }
@@ -14079,7 +14057,7 @@ public final class SLOperationRootNodeGen extends SLOperationRootNode implements
                         //     [ 1] endBranch
                         case ((INSTR_INSTRUMENT_LEAVE << 3) | 0) :
                         {
-                            ProbeNode probe = getProbeNodeImpl($this, unsafeFromBytecode($bc, $bci + INSTRUMENT_LEAVE_INSTRUMENT_OFFSET) + 0);
+                            ProbeNode probe = getProbeNodeImpl($this, unsafeFromBytecode($bc, $bci + INSTRUMENT_LEAVE_INSTRUMENT_OFFSET + 0));
                             if (probe != null) {
                                 Object result = probe.onReturnExceptionalOrUnwind($frame, null, false);
                                 if (result == ProbeNode.UNWIND_ACTION_REENTER) {
@@ -14210,6 +14188,7 @@ public final class SLOperationRootNodeGen extends SLOperationRootNode implements
                         case ((INSTR_LOAD_LOCAL_MAT << 3) | 0) :
                         case ((INSTR_STORE_LOCAL_MAT << 3) | 0) :
                         case ((INSTR_INSTRUMENT_ENTER << 3) | 0) :
+                        case ((INSTR_INSTRUMENT_EXIT << 3) | 0) :
                         case ((INSTR_INSTRUMENT_EXIT_VOID << 3) | 0) :
                             $sp = instructionGroup_2_0($this, $frame, $bc, $bci, $sp, $consts, $children, $localTags, $conditionProfiles, curOpcode);
                             $bci = $bci + 2;
@@ -14219,7 +14198,6 @@ public final class SLOperationRootNodeGen extends SLOperationRootNode implements
                         case ((INSTR_STORE_LOCAL << 3) | 5 /* BOOLEAN */) :
                         case ((INSTR_STORE_LOCAL << 3) | 1 /* LONG */) :
                         case ((INSTR_STORE_LOCAL << 3) | 7) :
-                        case ((INSTR_INSTRUMENT_EXIT << 3) | 0) :
                             $sp = instructionGroup_3_0($this, $frame, $bc, $bci, $sp, $consts, $children, $localTags, $conditionProfiles, curOpcode);
                             $bci = $bci + 3;
                             continue loop;
@@ -14472,14 +14450,14 @@ public final class SLOperationRootNodeGen extends SLOperationRootNode implements
                         $bci = $bci + INSTRUMENT_ENTER_LENGTH;
                         break;
                     }
-                    case INSTR_INSTRUMENT_EXIT_VOID :
-                    {
-                        $bci = $bci + INSTRUMENT_EXIT_VOID_LENGTH;
-                        break;
-                    }
                     case INSTR_INSTRUMENT_EXIT :
                     {
                         $bci = $bci + INSTRUMENT_EXIT_LENGTH;
+                        break;
+                    }
+                    case INSTR_INSTRUMENT_EXIT_VOID :
+                    {
+                        $bci = $bci + INSTRUMENT_EXIT_VOID_LENGTH;
                         break;
                     }
                     case INSTR_INSTRUMENT_LEAVE :
@@ -14722,7 +14700,7 @@ public final class SLOperationRootNodeGen extends SLOperationRootNode implements
         }
 
         @Override
-        OperationIntrospection getIntrospectionData(short[] $bc, ExceptionHandler[] $handlers, Object[] $consts, OperationNodesImpl nodes, int[] sourceInfo) {
+        OperationIntrospection getIntrospectionData(SLOperationRootNodeGen $this, short[] $bc, ExceptionHandler[] $handlers, Object[] $consts, OperationNodesImpl nodes, int[] sourceInfo) {
             int $bci = 0;
             ArrayList<Object[]> target = new ArrayList<>();
             while ($bci < $bc.length) {
@@ -14831,23 +14809,25 @@ public final class SLOperationRootNodeGen extends SLOperationRootNode implements
                     }
                     case INSTR_INSTRUMENT_ENTER :
                     {
-                        Object[] dec = new Object[] {$bci, "instrument.enter", Arrays.copyOfRange($bc, $bci, $bci + INSTRUMENT_ENTER_LENGTH), new Object[] {}};
+                        Object[] dec = new Object[] {$bci, "instrument.enter", Arrays.copyOfRange($bc, $bci, $bci + INSTRUMENT_ENTER_LENGTH), new Object[] {
+                            new Object[] {ArgumentKind.INSTRUMENT, (InstrumentTreeNode) $this.instruments[unsafeFromBytecode($bc, $bci + INSTRUMENT_ENTER_INSTRUMENT_OFFSET + 0)]}}};
                         $bci = $bci + INSTRUMENT_ENTER_LENGTH;
-                        target.add(dec);
-                        break;
-                    }
-                    case INSTR_INSTRUMENT_EXIT_VOID :
-                    {
-                        Object[] dec = new Object[] {$bci, "instrument.exit.void", Arrays.copyOfRange($bc, $bci, $bci + INSTRUMENT_EXIT_VOID_LENGTH), new Object[] {}};
-                        $bci = $bci + INSTRUMENT_EXIT_VOID_LENGTH;
                         target.add(dec);
                         break;
                     }
                     case INSTR_INSTRUMENT_EXIT :
                     {
                         Object[] dec = new Object[] {$bci, "instrument.exit", Arrays.copyOfRange($bc, $bci, $bci + INSTRUMENT_EXIT_LENGTH), new Object[] {
-                            new Object[] {ArgumentKind.CHILD_OFFSET, (int) (unsafeFromBytecode($bc, $bci + INSTRUMENT_EXIT_POP_INDEXED_OFFSET + 0) & 0xff)}}};
+                            new Object[] {ArgumentKind.INSTRUMENT, (InstrumentTreeNode) $this.instruments[unsafeFromBytecode($bc, $bci + INSTRUMENT_EXIT_INSTRUMENT_OFFSET + 0)]}}};
                         $bci = $bci + INSTRUMENT_EXIT_LENGTH;
+                        target.add(dec);
+                        break;
+                    }
+                    case INSTR_INSTRUMENT_EXIT_VOID :
+                    {
+                        Object[] dec = new Object[] {$bci, "instrument.exit.void", Arrays.copyOfRange($bc, $bci, $bci + INSTRUMENT_EXIT_VOID_LENGTH), new Object[] {
+                            new Object[] {ArgumentKind.INSTRUMENT, (InstrumentTreeNode) $this.instruments[unsafeFromBytecode($bc, $bci + INSTRUMENT_EXIT_VOID_INSTRUMENT_OFFSET + 0)]}}};
+                        $bci = $bci + INSTRUMENT_EXIT_VOID_LENGTH;
                         target.add(dec);
                         break;
                     }
@@ -14855,7 +14835,8 @@ public final class SLOperationRootNodeGen extends SLOperationRootNode implements
                     {
                         Object[] dec = new Object[] {$bci, "instrument.leave", Arrays.copyOfRange($bc, $bci, $bci + INSTRUMENT_LEAVE_LENGTH), new Object[] {
                             new Object[] {ArgumentKind.BRANCH_OFFSET, (int) unsafeFromBytecode($bc, $bci + INSTRUMENT_LEAVE_BRANCH_TARGET_OFFSET + 0)},
-                            new Object[] {ArgumentKind.BRANCH_OFFSET, (int) unsafeFromBytecode($bc, $bci + INSTRUMENT_LEAVE_BRANCH_TARGET_OFFSET + 1)}}};
+                            new Object[] {ArgumentKind.BRANCH_OFFSET, (int) unsafeFromBytecode($bc, $bci + INSTRUMENT_LEAVE_BRANCH_TARGET_OFFSET + 1)},
+                            new Object[] {ArgumentKind.INSTRUMENT, (InstrumentTreeNode) $this.instruments[unsafeFromBytecode($bc, $bci + INSTRUMENT_LEAVE_INSTRUMENT_OFFSET + 0)]}}};
                         $bci = $bci + INSTRUMENT_LEAVE_LENGTH;
                         target.add(dec);
                         break;
@@ -20280,9 +20261,22 @@ public final class SLOperationRootNodeGen extends SLOperationRootNode implements
                 //   Pushed Values: 0
                 case ((INSTR_INSTRUMENT_ENTER << 3) | 0) :
                 {
-                    ProbeNode probe = getProbeNodeImpl($this, unsafeFromBytecode($bc, $bci + INSTRUMENT_ENTER_INSTRUMENT_OFFSET) + 0);
+                    ProbeNode probe = getProbeNodeImpl($this, unsafeFromBytecode($bc, $bci + INSTRUMENT_ENTER_INSTRUMENT_OFFSET + 0));
                     if (probe != null) {
                         probe.onEnter($frame);
+                    }
+                    return $sp;
+                }
+                // instrument.exit
+                //   Simple Pops:
+                //     [ 0] value
+                //   Always Boxed
+                //   Pushed Values: 1
+                case ((INSTR_INSTRUMENT_EXIT << 3) | 0) :
+                {
+                    ProbeNode probe = getProbeNodeImpl($this, unsafeFromBytecode($bc, $bci + INSTRUMENT_EXIT_INSTRUMENT_OFFSET + 0));
+                    if (probe != null) {
+                        probe.onReturnValue($frame, expectObject($frame, $sp - 1, $bc, $bci, 0));
                     }
                     return $sp;
                 }
@@ -20290,7 +20284,7 @@ public final class SLOperationRootNodeGen extends SLOperationRootNode implements
                 //   Pushed Values: 0
                 case ((INSTR_INSTRUMENT_EXIT_VOID << 3) | 0) :
                 {
-                    ProbeNode probe = getProbeNodeImpl($this, unsafeFromBytecode($bc, $bci + INSTRUMENT_EXIT_VOID_INSTRUMENT_OFFSET) + 0);
+                    ProbeNode probe = getProbeNodeImpl($this, unsafeFromBytecode($bc, $bci + INSTRUMENT_EXIT_VOID_INSTRUMENT_OFFSET + 0));
                     if (probe != null) {
                         probe.onReturnValue($frame, null);
                     }
@@ -20339,18 +20333,6 @@ public final class SLOperationRootNodeGen extends SLOperationRootNode implements
                     int localIdx = unsafeFromBytecode($bc, $bci + STORE_LOCAL_LOCALS_OFFSET + 0);
                     do_storeLocal_null($this, $frame, $bc, $bci, $sp, $localTags, localIdx);
                     $sp--;
-                    return $sp;
-                }
-                // instrument.exit
-                //   Indexed Pops:
-                //     [ 0] value
-                //   Pushed Values: 0
-                case ((INSTR_INSTRUMENT_EXIT << 3) | 0) :
-                {
-                    ProbeNode probe = getProbeNodeImpl($this, unsafeFromBytecode($bc, $bci + INSTRUMENT_EXIT_INSTRUMENT_OFFSET) + 0);
-                    if (probe != null) {
-                        probe.onReturnValue($frame, expectObject($frame, $sp - 1, $bc, $bci, (unsafeFromBytecode($bc, $bci + INSTRUMENT_EXIT_POP_INDEXED_OFFSET + 0) & 0xff)));
-                    }
                     return $sp;
                 }
                 default :
@@ -23624,6 +23606,7 @@ public final class SLOperationRootNodeGen extends SLOperationRootNode implements
     private static final BytecodeLoopBase UNCOMMON_EXECUTE = new BytecodeNode();
     private static final BytecodeLoopBase COMMON_EXECUTE = UNCOMMON_EXECUTE;
     private static final BytecodeLoopBase UNCACHED_EXECUTE = new UncachedBytecodeNode();
+    private static final BytecodeLoopBase INSTRUMENTABLE_EXECUTE = new InstrumentableBytecodeNode();
     private static final BytecodeLoopBase INITIAL_EXECUTE = UNCACHED_EXECUTE;
     private static final short INSTR_POP = 1;
     private static final int POP_LENGTH = 1;
@@ -23664,13 +23647,12 @@ public final class SLOperationRootNodeGen extends SLOperationRootNode implements
     private static final short INSTR_INSTRUMENT_ENTER = 13;
     private static final int INSTRUMENT_ENTER_INSTRUMENT_OFFSET = 1;
     private static final int INSTRUMENT_ENTER_LENGTH = 2;
-    private static final short INSTR_INSTRUMENT_EXIT_VOID = 14;
+    private static final short INSTR_INSTRUMENT_EXIT = 14;
+    private static final int INSTRUMENT_EXIT_INSTRUMENT_OFFSET = 1;
+    private static final int INSTRUMENT_EXIT_LENGTH = 2;
+    private static final short INSTR_INSTRUMENT_EXIT_VOID = 15;
     private static final int INSTRUMENT_EXIT_VOID_INSTRUMENT_OFFSET = 1;
     private static final int INSTRUMENT_EXIT_VOID_LENGTH = 2;
-    private static final short INSTR_INSTRUMENT_EXIT = 15;
-    private static final int INSTRUMENT_EXIT_POP_INDEXED_OFFSET = 1;
-    private static final int INSTRUMENT_EXIT_INSTRUMENT_OFFSET = 2;
-    private static final int INSTRUMENT_EXIT_LENGTH = 3;
     private static final short INSTR_INSTRUMENT_LEAVE = 16;
     private static final int INSTRUMENT_LEAVE_BRANCH_TARGET_OFFSET = 1;
     private static final int INSTRUMENT_LEAVE_INSTRUMENT_OFFSET = 3;
@@ -23863,7 +23845,7 @@ public final class SLOperationRootNodeGen extends SLOperationRootNode implements
     @CompilationFinal private int _maxLocals;
     @CompilationFinal private int _maxStack;
     @CompilationFinal(dimensions = 1) private int[] sourceInfo;
-    @CompilationFinal private InstrumentRootNode instrumentRoot;
+    @Child private InstrumentRootNode instrumentRoot = InstrumentRootNode.create();
     @CompilationFinal(dimensions = 1) private InstrumentTreeNode[] instruments;
     @CompilationFinal private BytecodeLoopBase switchImpl = INITIAL_EXECUTE;
     @CompilationFinal private int uncachedExecuteCount = 16;
@@ -23889,6 +23871,17 @@ public final class SLOperationRootNodeGen extends SLOperationRootNode implements
 
     private <T extends Node> T insertAccessor(T node) { // () {
         return insert(node);
+    }
+
+    @Override
+    public void onInstrumentReplace(InstrumentTreeNode old, InstrumentTreeNode replacement) {
+        for (int i = 0; i < instruments.length; i++) {
+            if (instruments[i] == old) {
+                instruments[i] = replacement;
+                return;
+            }
+        }
+        assert false;
     }
 
     private Object executeAt(VirtualFrame frame, int storedLocation) {
@@ -23969,7 +23962,7 @@ public final class SLOperationRootNodeGen extends SLOperationRootNode implements
 
     @Override
     public OperationIntrospection getIntrospectionData() {
-        return switchImpl.getIntrospectionData(_bc, _handlers, _consts, nodes, sourceInfo);
+        return switchImpl.getIntrospectionData(this, _bc, _handlers, _consts, nodes, sourceInfo);
     }
 
     private Lock getLockAccessor() {
@@ -24743,7 +24736,7 @@ public final class SLOperationRootNodeGen extends SLOperationRootNode implements
 
         abstract int continueAt(SLOperationRootNodeGen $this, VirtualFrame $frame, short[] $bc, int $startBci, int $startSp, Object[] $consts, Node[] $children, byte[] $localTags, ExceptionHandler[] $handlers, int[] $conditionProfiles, int maxLocals);
 
-        abstract OperationIntrospection getIntrospectionData(short[] $bc, ExceptionHandler[] $handlers, Object[] $consts, OperationNodesImpl nodes, int[] sourceInfo);
+        abstract OperationIntrospection getIntrospectionData(SLOperationRootNodeGen $this, short[] $bc, ExceptionHandler[] $handlers, Object[] $consts, OperationNodesImpl nodes, int[] sourceInfo);
 
         abstract void prepareForAOT(SLOperationRootNodeGen $this, short[] $bc, Object[] $consts, Node[] $children, TruffleLanguage<?> language, RootNode root);
 
@@ -24934,7 +24927,8 @@ public final class SLOperationRootNodeGen extends SLOperationRootNode implements
         private int[] instructionHistory = new int[8];
         private int instructionHistoryIndex = 0;
         private int numLabels;
-        private int numInstrumentNodes;
+        private ArrayList<InstrumentTreeNode> instrumentList = new ArrayList<>();
+        private ArrayList<ArrayList<InstrumentTreeNode>> instrumentStack = new ArrayList<>();
         private ArrayList<Object> constPool = new ArrayList<>();
         private BuilderOperationData operationData;
         private ArrayList<OperationLabelImpl> labels = new ArrayList<>();
@@ -24997,7 +24991,9 @@ public final class SLOperationRootNodeGen extends SLOperationRootNode implements
             if (sourceBuilder != null) {
                 sourceBuilder = new SourceInfoBuilder(sourceBuilder.sourceList);
             }
-            numInstrumentNodes = 0;
+            instrumentList.clear();
+            instrumentStack.clear();
+            instrumentStack.add(new ArrayList<>());
             metadata_MethodName = null;
         }
 
@@ -25170,6 +25166,12 @@ public final class SLOperationRootNodeGen extends SLOperationRootNode implements
                     result.sourceInfo = sourceBuilder.build();
                 }
             }
+            if (withInstrumentation) {
+                result.changeInterpreters(INSTRUMENTABLE_EXECUTE);
+                result.instruments = instrumentList.toArray(new InstrumentTreeNode[0]);
+            }
+            assert instrumentStack.size() == 1;
+            result.instrumentRoot.setChildren(instrumentStack.get(0).toArray(new InstrumentTreeNode[0]));
             buildIndex++;
             reset(language);
             return result;
@@ -25203,6 +25205,13 @@ public final class SLOperationRootNodeGen extends SLOperationRootNode implements
                 }
                 case OP_TAG :
                 {
+                    doBeforeEmitInstruction(0, false, false);
+                    unsafeWriteBytecode(bc, bci, (short) ((INSTR_INSTRUMENT_LEAVE << 3) | 0));
+                    labelFills.add(new LabelFill(bci + 1 + 0, ((OperationLabelImpl) data.aux[1])));
+                    labelFills.add(new LabelFill(bci + 1 + 1, ((OperationLabelImpl) data.aux[2])));
+                    bc[bci + 3 + 0] = (short) (int) ((int) data.aux[0]);
+                    instructionHistory[++instructionHistoryIndex % 8] = INSTR_INSTRUMENT_LEAVE;
+                    bci = bci + INSTRUMENT_LEAVE_LENGTH;
                     break;
                 }
             }
@@ -26319,7 +26328,7 @@ public final class SLOperationRootNodeGen extends SLOperationRootNode implements
         }
 
         @SuppressWarnings("unused")
-        public void beginTag(Class<?> arg0) {
+        public void beginTag(Class<? extends Tag> arg0) {
             if (isSerializing) {
                 try {
                     int arg0_index = constPool.indexOf(arg0);
@@ -26339,7 +26348,11 @@ public final class SLOperationRootNodeGen extends SLOperationRootNode implements
             if (withInstrumentation) {
                 doBeforeChild();
                 operationData = new BuilderOperationData(operationData, OP_TAG, curStack, 3, true, (Object) arg0);
-                int curInstrumentId = 0;
+                int curInstrumentId = instrumentList.size();
+                InstrumentTreeNode _itn = new InstrumentTreeNode(arg0, bci);
+                instrumentList.add(_itn);
+                instrumentStack.get(instrumentStack.size() - 1).add(_itn);
+                instrumentStack.add(new ArrayList<>());
                 OperationLabelImpl startLabel = (OperationLabelImpl) createLabel();
                 OperationLabelImpl endLabel = (OperationLabelImpl) createLabel();
                 doEmitLabel(startLabel);
@@ -26348,8 +26361,7 @@ public final class SLOperationRootNodeGen extends SLOperationRootNode implements
                 operationData.aux[2] = endLabel;
                 doBeforeEmitInstruction(0, false, false);
                 unsafeWriteBytecode(bc, bci, (short) ((INSTR_INSTRUMENT_ENTER << 3) | 0));
-                bc[bci + 1] = (short) numInstrumentNodes;
-                numInstrumentNodes += 1;
+                bc[bci + 1 + 0] = (short) (int) curInstrumentId;
                 instructionHistory[++instructionHistoryIndex % 8] = INSTR_INSTRUMENT_ENTER;
                 bci = bci + INSTRUMENT_ENTER_LENGTH;
                 lastChildPush = 0;
@@ -26374,22 +26386,21 @@ public final class SLOperationRootNodeGen extends SLOperationRootNode implements
                 if (numChildren < 0) {
                     throw new IllegalStateException("Tag expected at least 0 children, got " + numChildren);
                 }
+                instrumentList.get(((int) operationData.aux[0])).setChildren(instrumentStack.remove(instrumentStack.size() - 1).toArray(new InstrumentTreeNode[0]));
                 if (lastChildPush != 0) {
-                    doBeforeEmitInstruction(0, false, false);
-                    unsafeWriteBytecode(bc, bci, (short) ((INSTR_INSTRUMENT_EXIT_VOID << 3) | 0));
-                    bc[bci + 1] = (short) numInstrumentNodes;
-                    numInstrumentNodes += 1;
-                    instructionHistory[++instructionHistoryIndex % 8] = INSTR_INSTRUMENT_EXIT_VOID;
-                    bci = bci + INSTRUMENT_EXIT_VOID_LENGTH;
-                } else {
-                    int[] predecessorBcis = doBeforeEmitInstruction(1, false, false);
+                    doBeforeEmitInstruction(1, true, false);
                     unsafeWriteBytecode(bc, bci, (short) ((INSTR_INSTRUMENT_EXIT << 3) | 0));
-                    bc[bci + 1 + 0] = (short) ((bci - predecessorBcis[0] < 256 ? bci - predecessorBcis[0] : 0));
-                    bc[bci + 1] = (short) numInstrumentNodes;
-                    numInstrumentNodes += 1;
+                    bc[bci + 1 + 0] = (short) (int) ((int) operationData.aux[0]);
                     instructionHistory[++instructionHistoryIndex % 8] = INSTR_INSTRUMENT_EXIT;
                     bci = bci + INSTRUMENT_EXIT_LENGTH;
+                } else {
+                    doBeforeEmitInstruction(0, false, false);
+                    unsafeWriteBytecode(bc, bci, (short) ((INSTR_INSTRUMENT_EXIT_VOID << 3) | 0));
+                    bc[bci + 1 + 0] = (short) (int) ((int) operationData.aux[0]);
+                    instructionHistory[++instructionHistoryIndex % 8] = INSTR_INSTRUMENT_EXIT_VOID;
+                    bci = bci + INSTRUMENT_EXIT_VOID_LENGTH;
                 }
+                doEmitLabel(((OperationLabelImpl) operationData.aux[2]));
                 operationData = operationData.parent;
                 doAfterChild();
             }
@@ -27439,7 +27450,7 @@ public final class SLOperationRootNodeGen extends SLOperationRootNode implements
                         }
                         case OP_TAG << 1 :
                         {
-                            Class<?> arg0 = (Class<?>) consts.get(buffer.getShort());
+                            Class<? extends Tag> arg0 = (Class<? extends Tag>) consts.get(buffer.getShort());
                             builder.beginTag(arg0);
                             break;
                         }

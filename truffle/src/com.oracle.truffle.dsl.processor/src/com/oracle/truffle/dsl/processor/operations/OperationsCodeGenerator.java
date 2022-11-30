@@ -53,6 +53,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.locks.Lock;
 
+import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
@@ -405,8 +406,11 @@ public class OperationsCodeGenerator extends CodeTypeElementFactory<OperationsDa
         }
 
         if (OperationGeneratorFlags.ENABLE_INSTRUMENTATION) {
-            typOperationNodeImpl.add(compFinal(new CodeVariableElement(MOD_PRIVATE, types.InstrumentRootNode, "instrumentRoot")));
+            CodeVariableElement instrumentRoot = typOperationNodeImpl.add(new CodeVariableElement(MOD_PRIVATE, types.InstrumentRootNode, "instrumentRoot"));
+            instrumentRoot.addAnnotationMirror(new CodeAnnotationMirror(types.Node_Child));
+            instrumentRoot.createInitBuilder().startStaticCall(types.InstrumentRootNode, "create").end();
             typOperationNodeImpl.add(compFinal(new CodeVariableElement(MOD_PRIVATE, arrayOf(types.InstrumentTreeNode), "instruments")));
+            typOperationNodeImpl.add(createNodeImplOnInstrumentReplace());
         }
 
         CodeVariableElement fldSwitchImpl = new CodeVariableElement(MOD_PRIVATE, typBytecodeBase.asType(), "switchImpl");
@@ -458,6 +462,10 @@ public class OperationsCodeGenerator extends CodeTypeElementFactory<OperationsDa
             initialExecute = "UNCACHED_EXECUTE";
         }
 
+        if (OperationGeneratorFlags.ENABLE_INSTRUMENTATION) {
+            typOperationNodeImpl.add(new CodeVariableElement(MOD_PRIVATE_STATIC_FINAL, typBytecodeBase.asType(), "INSTRUMENTABLE_EXECUTE = new InstrumentableBytecodeNode()"));
+        }
+
         typOperationNodeImpl.add(new CodeVariableElement(MOD_PRIVATE_STATIC_FINAL, typBytecodeBase.asType(), "INITIAL_EXECUTE = " + initialExecute));
 
         typOperationNodeImpl.add(createNodeImplExecuteAt());
@@ -470,7 +478,7 @@ public class OperationsCodeGenerator extends CodeTypeElementFactory<OperationsDa
 
         CodeExecutableElement mDump = GeneratorUtils.overrideImplement(types.OperationIntrospection_Provider, "getIntrospectionData");
         typOperationNodeImpl.add(mDump);
-        mDump.createBuilder().startReturn().startCall("switchImpl.getIntrospectionData").string("_bc, _handlers, _consts, nodes, sourceInfo").end(2);
+        mDump.createBuilder().startReturn().startCall("switchImpl.getIntrospectionData").string("this, _bc, _handlers, _consts, nodes, sourceInfo").end(2);
 
         CodeExecutableElement mGetLockAccessor = new CodeExecutableElement(MOD_PRIVATE, context.getType(Lock.class), "getLockAccessor");
         typOperationNodeImpl.add(mGetLockAccessor);
@@ -570,6 +578,23 @@ public class OperationsCodeGenerator extends CodeTypeElementFactory<OperationsDa
         }
 
         return typOperationNodeImpl;
+    }
+
+    private CodeExecutableElement createNodeImplOnInstrumentReplace() {
+        CodeExecutableElement met = GeneratorUtils.overrideImplement(types.OperationRootNode, "onInstrumentReplace");
+
+        CodeTreeBuilder b = met.createBuilder();
+
+        b.startFor().string("int i = 0; i < instruments.length; i++").end().startBlock();
+        b.startIf().string("instruments[i] == old").end().startBlock();
+        b.statement("instruments[i] = replacement");
+        b.returnStatement();
+        b.end();
+        b.end();
+
+        b.startAssert().string("false").end();
+
+        return met;
     }
 
     private CodeExecutableElement createGetTreeProbeNode(TypeMirror thisType) {
@@ -1078,7 +1103,10 @@ public class OperationsCodeGenerator extends CodeTypeElementFactory<OperationsDa
             typBuilderImpl.add(new CodeVariableElement(MOD_PRIVATE, context.getType(boolean[].class), "isBbStart = new boolean[65535]"));
         }
         if (OperationGeneratorFlags.ENABLE_INSTRUMENTATION) {
-            typBuilderImpl.add(new CodeVariableElement(MOD_PRIVATE, context.getType(int.class), "numInstrumentNodes"));
+            typBuilderImpl.add(new CodeVariableElement(MOD_PRIVATE, generic(ArrayList.class, types.InstrumentTreeNode),
+                            "instrumentList = new ArrayList<>()"));
+            typBuilderImpl.add(new CodeVariableElement(MOD_PRIVATE, generic(ArrayList.class, generic(ArrayList.class, types.InstrumentTreeNode)),
+                            "instrumentStack = new ArrayList<>()"));
         }
 
         CodeVariableElement fldConstPool = typBuilderImpl.add(
@@ -1913,6 +1941,7 @@ public class OperationsCodeGenerator extends CodeTypeElementFactory<OperationsDa
         baseClass.add(loopMethod);
 
         CodeExecutableElement dumpMethod = new CodeExecutableElement(MOD_ABSTRACT, types.OperationIntrospection, "getIntrospectionData");
+        dumpMethod.addParameter(new CodeVariableElement(opNodeImpl.asType(), "$this"));
         dumpMethod.addParameter(new CodeVariableElement(new ArrayCodeTypeMirror(context.getType(short.class)), "$bc"));
         dumpMethod.addParameter(new CodeVariableElement(new ArrayCodeTypeMirror(typExceptionHandler.asType()), "$handlers"));
         dumpMethod.addParameter(new CodeVariableElement(context.getType(Object[].class), "$consts"));
@@ -2412,9 +2441,15 @@ public class OperationsCodeGenerator extends CodeTypeElementFactory<OperationsDa
         b.statement("result.sourceInfo = sourceBuilder.build()");
         b.end();
 
-        // todo instrumentation
-
         b.end();
+
+        b.startIf().string("withInstrumentation").end().startBlock();
+        b.statement("result.changeInterpreters(INSTRUMENTABLE_EXECUTE)");
+        b.statement("result.instruments = instrumentList.toArray(new InstrumentTreeNode[0])");
+        b.end();
+
+        b.startAssert().string("instrumentStack.size() == 1").end();
+        b.statement("result.instrumentRoot.setChildren(instrumentStack.get(0).toArray(new InstrumentTreeNode[0]))");
 
         b.statement("buildIndex++");
         b.statement("reset(language)");
@@ -2839,7 +2874,9 @@ public class OperationsCodeGenerator extends CodeTypeElementFactory<OperationsDa
         }
 
         if (OperationGeneratorFlags.ENABLE_INSTRUMENTATION) {
-            b.statement("numInstrumentNodes = 0");
+            b.statement("instrumentList.clear()");
+            b.statement("instrumentStack.clear()");
+            b.statement("instrumentStack.add(new ArrayList<>())");
         }
 
         for (OperationMetadataData metadata : m.getMetadatas()) {

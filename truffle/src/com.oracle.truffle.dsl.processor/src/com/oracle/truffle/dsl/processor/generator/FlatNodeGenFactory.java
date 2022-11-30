@@ -1900,7 +1900,7 @@ public class FlatNodeGenFactory {
         }
 
         boolean isExecutableInUncached = effectiveEvaluatedCount != node.getExecutionCount() && !node.getChildren().isEmpty();
-        if (!isExecutableInUncached) {
+        if (!isExecutableInUncached && generatorMode != GeneratorMode.OPERATIONS) {
             GeneratorUtils.addBoundaryOrTransferToInterpreter(method, builder);
         }
 

@@ -55,10 +55,10 @@ import org.antlr.v4.runtime.tree.TerminalNode;
 import com.oracle.truffle.api.RootCallTarget;
 import com.oracle.truffle.api.debug.DebuggerTags;
 import com.oracle.truffle.api.instrumentation.StandardTags;
+import com.oracle.truffle.api.instrumentation.StandardTags.ExpressionTag;
 import com.oracle.truffle.api.operation.OperationConfig;
 import com.oracle.truffle.api.operation.OperationLabel;
 import com.oracle.truffle.api.operation.OperationLocal;
-import com.oracle.truffle.api.operation.OperationRootNode;
 import com.oracle.truffle.api.source.Source;
 import com.oracle.truffle.api.strings.TruffleString;
 import com.oracle.truffle.sl.SLLanguage;
@@ -71,6 +71,7 @@ import com.oracle.truffle.sl.parser.SimpleLanguageOperationsParser.Break_stateme
 import com.oracle.truffle.sl.parser.SimpleLanguageOperationsParser.Continue_statementContext;
 import com.oracle.truffle.sl.parser.SimpleLanguageOperationsParser.Debugger_statementContext;
 import com.oracle.truffle.sl.parser.SimpleLanguageOperationsParser.ExpressionContext;
+import com.oracle.truffle.sl.parser.SimpleLanguageOperationsParser.Expression_statementContext;
 import com.oracle.truffle.sl.parser.SimpleLanguageOperationsParser.FunctionContext;
 import com.oracle.truffle.sl.parser.SimpleLanguageOperationsParser.If_statementContext;
 import com.oracle.truffle.sl.parser.SimpleLanguageOperationsParser.Logic_factorContext;
@@ -95,11 +96,11 @@ import com.oracle.truffle.sl.runtime.SLNull;
  */
 public final class SLOperationsVisitor extends SLBaseVisitor {
 
-    private static final boolean DO_LOG_NODE_CREATION = false;
+    private static final boolean DO_LOG_NODE_CREATION = true;
     private static final boolean FORCE_SERIALIZE = false;
 
     public static void parseSL(SLLanguage language, Source source, Map<TruffleString, RootCallTarget> functions) {
-        var nodes = SLOperationRootNodeGen.create(OperationConfig.WITH_SOURCE, builder -> {
+        var nodes = SLOperationRootNodeGen.create(OperationConfig.COMPLETE, builder -> {
             SLOperationsVisitor visitor = new SLOperationsVisitor(language, source, builder);
             parseSLImpl(source, visitor);
         });
@@ -150,8 +151,7 @@ public final class SLOperationsVisitor extends SLBaseVisitor {
 
     private final ArrayList<OperationLocal> locals = new ArrayList<>();
 
-    @Override
-    public Void visit(ParseTree tree) {
+    private void beginTree(ParseTree tree) {
         int sourceStart;
         int sourceEnd;
 
@@ -168,9 +168,10 @@ public final class SLOperationsVisitor extends SLBaseVisitor {
         }
 
         b.beginSourceSection(sourceStart, sourceEnd - sourceStart);
-        super.visit(tree);
+    }
+
+    private void endTree(ParseTree tree) {
         b.endSourceSection();
-        return null;
     }
 
     @Override
@@ -181,6 +182,8 @@ public final class SLOperationsVisitor extends SLBaseVisitor {
         b.setMethodName(name);
 
         b.beginSource(source);
+        beginTree(ctx);
+
         b.beginTag(StandardTags.RootTag.class);
 
         int numArguments = enterFunction(ctx).size();
@@ -208,15 +211,18 @@ public final class SLOperationsVisitor extends SLBaseVisitor {
         b.endReturn();
 
         b.endTag();
+
+        endTree(ctx);
         b.endSource();
 
-        OperationRootNode node = b.endRoot();
+        b.endRoot();
 
         return null;
     }
 
     @Override
     public Void visitBlock(BlockContext ctx) {
+        beginTree(ctx);
         b.beginBlock();
 
         int numLocals = enterBlock(ctx).size();
@@ -231,6 +237,7 @@ public final class SLOperationsVisitor extends SLBaseVisitor {
         exitBlock();
 
         b.endBlock();
+        endTree(ctx);
         return null;
     }
 
@@ -240,9 +247,11 @@ public final class SLOperationsVisitor extends SLBaseVisitor {
             semErr(ctx.b, "break used outside of loop");
         }
 
+        beginTree(ctx);
         b.beginTag(StandardTags.StatementTag.class);
         b.emitBranch(breakLabel);
         b.endTag();
+        endTree(ctx);
 
         return null;
     }
@@ -253,17 +262,21 @@ public final class SLOperationsVisitor extends SLBaseVisitor {
             semErr(ctx.c, "continue used outside of loop");
         }
 
+        beginTree(ctx);
         b.beginTag(StandardTags.StatementTag.class);
         b.emitBranch(continueLabel);
         b.endTag();
+        endTree(ctx);
 
         return null;
     }
 
     @Override
     public Void visitDebugger_statement(Debugger_statementContext ctx) {
+        beginTree(ctx);
         b.beginTag(DebuggerTags.AlwaysHalt.class);
         b.endTag();
+        endTree(ctx);
 
         return null;
     }
@@ -272,6 +285,8 @@ public final class SLOperationsVisitor extends SLBaseVisitor {
     public Void visitWhile_statement(While_statementContext ctx) {
         OperationLabel oldBreak = breakLabel;
         OperationLabel oldContinue = continueLabel;
+
+        beginTree(ctx);
 
         b.beginTag(StandardTags.StatementTag.class);
 
@@ -290,6 +305,7 @@ public final class SLOperationsVisitor extends SLBaseVisitor {
         b.emitLabel(breakLabel);
 
         b.endTag();
+        endTree(ctx);
 
         breakLabel = oldBreak;
         continueLabel = oldContinue;
@@ -299,6 +315,7 @@ public final class SLOperationsVisitor extends SLBaseVisitor {
 
     @Override
     public Void visitIf_statement(If_statementContext ctx) {
+        beginTree(ctx);
         b.beginTag(StandardTags.StatementTag.class);
 
         if (ctx.alt == null) {
@@ -324,11 +341,13 @@ public final class SLOperationsVisitor extends SLBaseVisitor {
         }
 
         b.endTag();
+        endTree(ctx);
         return null;
     }
 
     @Override
     public Void visitReturn_statement(Return_statementContext ctx) {
+        beginTree(ctx);
         b.beginTag(StandardTags.StatementTag.class);
         b.beginReturn();
 
@@ -340,13 +359,29 @@ public final class SLOperationsVisitor extends SLBaseVisitor {
 
         b.endReturn();
         b.endTag();
+        endTree(ctx);
+
+        return null;
+    }
+
+    @Override
+    public Void visitExpression_statement(Expression_statementContext ctx) {
+        beginTree(ctx);
+        b.beginTag(StandardTags.StatementTag.class);
+        visit(ctx.expression());
+        b.endTag();
+        endTree(ctx);
 
         return null;
     }
 
     @Override
     public Void visitExpression(ExpressionContext ctx) {
+        if (ctx.logic_term().size() == 1) {
+            return visit(ctx.logic_term(0));
+        }
 
+        beginTree(ctx);
         b.beginTag(StandardTags.ExpressionTag.class);
 
         b.beginSLOr();
@@ -356,13 +391,18 @@ public final class SLOperationsVisitor extends SLBaseVisitor {
         b.endSLOr();
 
         b.endTag();
+        endTree(ctx);
 
         return null;
     }
 
     @Override
     public Void visitLogic_term(Logic_termContext ctx) {
+        if (ctx.logic_factor().size() == 1) {
+            return visit(ctx.logic_factor(0));
+        }
 
+        beginTree(ctx);
         b.beginTag(StandardTags.ExpressionTag.class);
         b.beginSLUnbox();
 
@@ -374,6 +414,7 @@ public final class SLOperationsVisitor extends SLBaseVisitor {
 
         b.endSLUnbox();
         b.endTag();
+        endTree(ctx);
 
         return null;
     }
@@ -384,6 +425,7 @@ public final class SLOperationsVisitor extends SLBaseVisitor {
             return visit(ctx.arithmetic(0));
         }
 
+        beginTree(ctx);
         b.beginTag(StandardTags.ExpressionTag.class);
         b.beginSLUnbox();
 
@@ -436,17 +478,20 @@ public final class SLOperationsVisitor extends SLBaseVisitor {
 
         b.endSLUnbox();
         b.endTag();
+        endTree(ctx);
 
         return null;
     }
 
     @Override
     public Void visitArithmetic(ArithmeticContext ctx) {
-
-        if (!ctx.OP_ADD().isEmpty()) {
-            b.beginTag(StandardTags.ExpressionTag.class);
-            b.beginSLUnbox();
+        if (ctx.term().size() == 1) {
+            return visit(ctx.term(0));
         }
+
+        beginTree(ctx);
+        b.beginTag(StandardTags.ExpressionTag.class);
+        b.beginSLUnbox();
 
         for (int i = ctx.OP_ADD().size() - 1; i >= 0; i--) {
             switch (ctx.OP_ADD(i).getText()) {
@@ -478,20 +523,25 @@ public final class SLOperationsVisitor extends SLBaseVisitor {
             }
         }
 
-        if (!ctx.OP_ADD().isEmpty()) {
-            b.endSLUnbox();
-            b.endTag();
-        }
+        b.endSLUnbox();
+        b.endTag();
+        endTree(ctx);
 
         return null;
     }
 
     @Override
     public Void visitTerm(TermContext ctx) {
-        if (!ctx.OP_MUL().isEmpty()) {
-            b.beginTag(StandardTags.ExpressionTag.class);
+        if (ctx.factor().size() == 1) {
             b.beginSLUnbox();
+            visit(ctx.factor(0));
+            b.endSLUnbox();
+            return null;
         }
+
+        beginTree(ctx);
+        b.beginTag(StandardTags.ExpressionTag.class);
+        b.beginSLUnbox();
         for (int i = ctx.OP_MUL().size() - 1; i >= 0; i--) {
             switch (ctx.OP_MUL(i).getText()) {
                 case "*":
@@ -526,30 +576,35 @@ public final class SLOperationsVisitor extends SLBaseVisitor {
             }
         }
 
-        if (!ctx.OP_MUL().isEmpty()) {
-            b.endSLUnbox();
-            b.endTag();
-        }
+        b.endSLUnbox();
+        b.endTag();
+        endTree(ctx);
 
         return null;
     }
 
     @Override
     public Void visitNameAccess(NameAccessContext ctx) {
-        buildMemberExpressionRead(ctx.IDENTIFIER().getSymbol(), ctx.member_expression(), ctx.member_expression().size() - 1);
+        beginTree(ctx);
+        buildMemberExpressionRead(ctx.IDENTIFIER(), ctx.member_expression(), ctx.member_expression().size() - 1);
+        endTree(ctx);
         return null;
     }
 
-    private void buildMemberExpressionRead(Token ident, List<Member_expressionContext> members, int idx) {
+    private void buildMemberExpressionRead(TerminalNode ident, List<Member_expressionContext> members, int idx) {
         if (idx == -1) {
-            int localIdx = getNameIndex(ident);
+            beginTree(ident);
+            b.beginTag(ExpressionTag.class);
+            int localIdx = getNameIndex(ident.getSymbol());
             if (localIdx != -1) {
                 b.emitLoadLocal(locals.get(localIdx));
             } else {
                 b.beginSLFunctionLiteral();
-                b.emitLoadConstant(asTruffleString(ident, false));
+                b.emitLoadConstant(asTruffleString(ident.getSymbol(), false));
                 b.endSLFunctionLiteral();
             }
+            b.endTag();
+            endTree(ident);
             return;
         }
 
@@ -599,12 +654,12 @@ public final class SLOperationsVisitor extends SLBaseVisitor {
 
     private final ArrayList<Integer> writeLocalsStack = new ArrayList<>();
 
-    private void buildMemberExpressionWriteBefore(Token ident, List<Member_expressionContext> members, int idx, Token errorToken) {
+    private void buildMemberExpressionWriteBefore(TerminalNode ident, List<Member_expressionContext> members, int idx, Token errorToken) {
         if (idx == -1) {
-            int localIdx = getNameIndex(ident);
+            int localIdx = getNameIndex(ident.getSymbol());
             assert localIdx != -1;
             writeLocalsStack.add(localIdx);
-
+            b.beginTag(ExpressionTag.class);
             b.beginBlock();
             b.beginStoreLocal(locals.get(localIdx));
             return;
@@ -634,12 +689,13 @@ public final class SLOperationsVisitor extends SLBaseVisitor {
     }
 
     @SuppressWarnings("unused")
-    private void buildMemberExpressionWriteAfter(Token ident, List<Member_expressionContext> members, int idx) {
+    private void buildMemberExpressionWriteAfter(TerminalNode ident, List<Member_expressionContext> members, int idx) {
         if (idx == -1) {
             int localIdx = writeLocalsStack.remove(writeLocalsStack.size() - 1);
             b.endStoreLocal();
             b.emitLoadLocal(locals.get(localIdx));
             b.endBlock();
+            b.endTag();
             return;
         }
 
@@ -649,7 +705,9 @@ public final class SLOperationsVisitor extends SLBaseVisitor {
 
     @Override
     public Void visitStringLiteral(StringLiteralContext ctx) {
+        b.beginTag(ExpressionTag.class);
         b.emitLoadConstant(asTruffleString(ctx.STRING_LITERAL().getSymbol(), true));
+        b.endTag();
         return null;
     }
 
@@ -661,7 +719,11 @@ public final class SLOperationsVisitor extends SLBaseVisitor {
         } catch (NumberFormatException ex) {
             value = new SLBigNumber(new BigInteger(ctx.NUMERIC_LITERAL().getText()));
         }
+        beginTree(ctx);
+        b.beginTag(ExpressionTag.class);
         b.emitLoadConstant(value);
+        b.endTag();
+        endTree(ctx);
         return null;
     }
 

@@ -48,6 +48,7 @@ import com.oracle.truffle.api.frame.VirtualFrame;
 import com.oracle.truffle.api.instrumentation.InstrumentableNode;
 import com.oracle.truffle.api.instrumentation.Tag;
 import com.oracle.truffle.api.nodes.NodeInterface;
+import com.oracle.truffle.api.operation.instrumentation.InstrumentTreeNode;
 import com.oracle.truffle.api.operation.introspection.ExceptionHandler;
 import com.oracle.truffle.api.operation.introspection.Instruction;
 import com.oracle.truffle.api.operation.introspection.OperationIntrospection;
@@ -94,4 +95,8 @@ public interface OperationRootNode extends NodeInterface, OperationIntrospection
     }
 
     InstrumentableNode materializeInstrumentTree(Set<Class<? extends Tag>> materializedTags);
+
+    default void onInstrumentReplace(InstrumentTreeNode old, InstrumentTreeNode replacement) {
+        throw new UnsupportedOperationException();
+    }
 }

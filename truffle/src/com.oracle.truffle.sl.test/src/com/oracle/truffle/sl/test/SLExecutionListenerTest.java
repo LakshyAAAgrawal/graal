@@ -90,8 +90,8 @@ public class SLExecutionListenerTest {
         eval("return 2;");
 
         enterRoot(rootSourceSection("return 2;"));
-        enterStatement("return 2");
-        leaveStatement("return 2", null);
+        enterStatement("return 2;");
+        leaveStatement("return 2;", null);
         leaveRoot(rootSourceSection("return 2;"), 2);
     }
 
@@ -103,14 +103,14 @@ public class SLExecutionListenerTest {
                         attach(context.getEngine());
 
         eval("2 + 3;");
-        enterStatement("2 + 3");
-        leaveStatement("2 + 3", 5);
+        enterStatement("2 + 3;");
+        leaveStatement("2 + 3;", 5);
 
         eval("2 + 3; 3 + 6;");
-        enterStatement("2 + 3");
-        leaveStatement("2 + 3", 5);
-        enterStatement("3 + 6");
-        leaveStatement("3 + 6", 9);
+        enterStatement("2 + 3;");
+        leaveStatement("2 + 3;", 5);
+        enterStatement("3 + 6;");
+        leaveStatement("3 + 6;", 9);
     }
 
     @Test
@@ -121,12 +121,18 @@ public class SLExecutionListenerTest {
                         attach(context.getEngine());
         eval("2 + 3;");
 
-        enterStatement("2 + 3");
+        System./**/out.println();
+        for (var event : events) {
+            System./**/out.println(event);
+        }
+        System./**/out.println();
+
+        enterExpression("2 + 3");
         enterExpression("2");
         leaveExpression("2", 2);
         enterExpression("3");
         leaveExpression("3", 3);
-        leaveStatement("2 + 3", 5, 2, 3);
+        leaveExpression("2 + 3", 5, 2, 3);
     }
 
     @Test
@@ -151,26 +157,28 @@ public class SLExecutionListenerTest {
 
         eval("2 + 3;");
 
-        enterStatement("2 + 3");
+        enterStatement("2 + 3;");
+        enterExpression("2 + 3");
         enterExpression("2");
         leaveExpression("2", 2);
         enterExpression("3");
         leaveExpression("3", 3);
-        leaveStatement("2 + 3", 5, 2, 3);
+        leaveExpression("2 + 3", 5, 2, 3);
+        leaveStatement("2 + 3;", 5, 5);
     }
 
     @Test
     public void testFactorial() {
         // @formatter:off
         String characters =
-                        "fac(n) {" +
+                        "function fac(n) {" +
                         "  if (n <= 1) {" +
                         "    return 1;" +
                         "  }" +
                         "  return fac(n - 1) * n;" +
                         "}";
         // @formatter:on
-        context.eval("sl", "function " + characters);
+        context.eval("sl", characters);
         Value factorial = context.getBindings("sl").getMember("fac");
         ExecutionListener.newBuilder().onReturn(this::add).onEnter(this::add).//
                         expressions(true).statements(true).roots(true).//
@@ -190,22 +198,24 @@ public class SLExecutionListenerTest {
     }
 
     private static String wrapInFunction(String s) {
-        return "function " + rootSourceSection(s);
+        return rootSourceSection(s);
     }
 
     private static String rootSourceSection(String s) {
-        return "wrapper() {\n  " + s + " \n}";
+        return "function wrapper() {\n  " + s + " \n}";
     }
 
     private void testFactorial(String characters, Value factorial) {
         factorial.execute(3);
         enterRoot(characters);
-        enterStatement("n <= 1");
+        enterStatement("if (n <= 1) {    return 1;  }");
+        enterExpression("n <= 1");
         enterExpression("n");
         leaveExpression("n", 3);
         enterExpression("1");
         leaveExpression("1", 1);
-        leaveStatement("n <= 1", false, 3, 1);
+        leaveExpression("n <= 1", false, 1, 3);
+        leaveStatement("if (n <= 1) {    return 1;  }", null);
         enterStatement("return fac(n - 1) * n");
         enterExpression("fac(n - 1) * n");
         enterExpression("fac(n - 1)");

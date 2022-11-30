@@ -45,21 +45,46 @@ import com.oracle.truffle.api.instrumentation.ProbeNode;
 import com.oracle.truffle.api.instrumentation.Tag;
 import com.oracle.truffle.api.nodes.Node;
 import com.oracle.truffle.api.nodes.NodeCost;
+import com.oracle.truffle.api.operation.OperationRootNode;
+import com.oracle.truffle.api.source.SourceSection;
 
 public class InstrumentTreeNode extends Node implements InstrumentableNode {
 
-    private static final InstrumentTreeNode[] EMPTY_NODE_ARRAY = new InstrumentTreeNode[0];
-
     private final Class<? extends Tag> tag;
-    @Children private final InstrumentTreeNode[] children;
+    private final int bci;
+    @Children private InstrumentTreeNode[] children;
 
-    public InstrumentTreeNode(Class<? extends Tag> tag, InstrumentTreeNode[] children) {
+    public InstrumentTreeNode(Class<? extends Tag> tag, int bci) {
         this.tag = tag;
-        this.children = children;
+        this.bci = bci;
+        this.children = null;
     }
 
     public boolean hasTag(Class<? extends Tag> which) {
         return tag == which;
+    }
+
+    @Override
+    protected void onReplace(Node newNode, CharSequence reason) {
+        ((OperationRootNode) getRootNode()).onInstrumentReplace(this, (InstrumentTreeNode) newNode);
+    }
+
+    public Class<? extends Tag> getTag() {
+        return tag;
+    }
+
+    public void setChildren(InstrumentTreeNode[] children) {
+        this.children = insert(children);
+    }
+
+    @Override
+    public SourceSection getSourceSection() {
+        return ((OperationRootNode) getRootNode()).getSourceSectionAtBci(bci);
+    }
+
+    @Override
+    public NodeCost getCost() {
+        return NodeCost.NONE;
     }
 
     public boolean isInstrumentable() {
@@ -67,7 +92,13 @@ public class InstrumentTreeNode extends Node implements InstrumentableNode {
     }
 
     public WrapperNode createWrapper(ProbeNode probe) {
+        System/**/.out.println(" attaching " + probe + " to " + Tag.getIdentifier(tag) + " at " + bci);
         return new Wrapper(this, probe);
+    }
+
+    @Override
+    public String toString() {
+        return String.format("instrument-tree %s @%04x for %s", Tag.getIdentifier(tag), bci, getRootNode());
     }
 
     static final class Wrapper extends InstrumentTreeNode implements WrapperNode {
@@ -75,7 +106,7 @@ public class InstrumentTreeNode extends Node implements InstrumentableNode {
         @Child private ProbeNode probeNode;
 
         Wrapper(InstrumentTreeNode delegateNode, ProbeNode probeNode) {
-            super(delegateNode.tag, EMPTY_NODE_ARRAY);
+            super(delegateNode.tag, delegateNode.bci);
             this.delegateNode = delegateNode;
             this.probeNode = probeNode;
         }
@@ -88,11 +119,6 @@ public class InstrumentTreeNode extends Node implements InstrumentableNode {
         @Override
         public ProbeNode getProbeNode() {
             return probeNode;
-        }
-
-        @Override
-        public NodeCost getCost() {
-            return NodeCost.NONE;
         }
     }
 }

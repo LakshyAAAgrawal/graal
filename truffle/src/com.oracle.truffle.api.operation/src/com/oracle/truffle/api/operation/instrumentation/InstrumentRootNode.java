@@ -40,6 +40,7 @@
  */
 package com.oracle.truffle.api.operation.instrumentation;
 
+import java.util.Arrays;
 import java.util.Set;
 
 import com.oracle.truffle.api.instrumentation.InstrumentableNode;
@@ -61,7 +62,7 @@ public class InstrumentRootNode extends Node implements InstrumentableNode {
         return new InstrumentRootNode(nodes);
     }
 
-    @Children private final InstrumentTreeNode[] children;
+    @Children private InstrumentTreeNode[] children;
 
     private InstrumentRootNode(InstrumentTreeNode[] children) {
         this.children = children;
@@ -77,6 +78,15 @@ public class InstrumentRootNode extends Node implements InstrumentableNode {
 
     public InstrumentableNode materializeInstrumentableNodes(Set<Class<? extends Tag>> materializedTags) {
         return ((OperationRootNode) getParent()).materializeInstrumentTree(materializedTags);
+    }
+
+    public void setChildren(InstrumentTreeNode[] children) {
+        this.children = insert(children);
+    }
+
+    @Override
+    public String toString() {
+        return "instrumentation-root for " + getParent();
     }
 
     static final class Wrapper extends InstrumentRootNode implements WrapperNode {

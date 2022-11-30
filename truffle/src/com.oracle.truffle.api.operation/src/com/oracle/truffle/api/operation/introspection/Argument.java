@@ -40,6 +40,9 @@
  */
 package com.oracle.truffle.api.operation.introspection;
 
+import com.oracle.truffle.api.instrumentation.Tag;
+import com.oracle.truffle.api.operation.instrumentation.InstrumentTreeNode;
+
 public final class Argument {
 
     private final Object[] data;
@@ -55,7 +58,8 @@ public final class Argument {
         CONSTANT,
         CHILD_OFFSET,
         VARIADIC,
-        BRANCH_OFFSET;
+        BRANCH_OFFSET,
+        INSTRUMENT;
 
         public String toString(Object value) {
             switch (this) {
@@ -77,6 +81,8 @@ public final class Argument {
                     return String.format("variadic(%d)", (int) value);
                 case BRANCH_OFFSET:
                     return String.format("branch(%04x)", (int) value);
+                case INSTRUMENT:
+                    return String.format("tag(%s)", Tag.getIdentifier(((InstrumentTreeNode) value).getTag()));
                 default:
                     throw new UnsupportedOperationException("Unexpected value: " + this);
             }

@@ -54,11 +54,16 @@ public class InstrumentationExitInstruction extends Instruction {
     }
 
     public InstrumentationExitInstruction(OperationsContext ctx, int id, boolean returnsValue) {
-        super(ctx, "instrument.exit", id, 0);
+        super(ctx, "instrument.exit", id, 1);
         assert returnsValue;
         this.returnsValue = true;
         addInstrument("instrument");
-        addPopIndexed("value");
+        addPopSimple("value");
+    }
+
+    @Override
+    public boolean alwaysBoxed() {
+        return true;
     }
 
     @Override
@@ -84,7 +89,7 @@ public class InstrumentationExitInstruction extends Instruction {
             if (ctx.hasBoxingElimination()) {
                 b.variable(vars.bc);
                 b.variable(vars.bci);
-                b.tree(createPopIndexedIndex(vars, 0, false));
+                b.string("0");
             }
             b.end();
         } else {
