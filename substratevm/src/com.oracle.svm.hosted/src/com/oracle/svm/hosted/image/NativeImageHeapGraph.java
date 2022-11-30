@@ -42,7 +42,6 @@ public class NativeImageHeapGraph {
     private static class GroupEntry {
         public final Set<ObjectInfo> objects;
         public final long sizeInBytes;
-        private static final HashSet<Integer> alreadySeen = new HashSet<>() ;
         public GroupEntry(Set<ObjectInfo> objects) {
             this.objects = objects;
             this.sizeInBytes = computeTotalSize(objects);
@@ -67,9 +66,6 @@ public class NativeImageHeapGraph {
         this.connectedComponents = computeConnectedComponents(this.heap);
         long end = System.currentTimeMillis();
         System.out.printf("Computed in: %.4fs\n", (end - start) / 1000.0f);
-        System.out.println(this.totalHeapSizeInBytes);
-        long computed = computeTotalSize(this.heap.getObjects());
-        System.out.println(computed);
     }
 
     private static <T> Set<T> getHashSetInstance() {
@@ -136,7 +132,6 @@ public class NativeImageHeapGraph {
                 if (info != null) {
                     objects.remove(info);
                     result.add(info);
-                    System.out.printf("%d ObjectInfo=%d arr=%d\n", info.getIdentityHashCode(), info.getSize(), arr.length);
                 }
             }
         }
@@ -255,7 +250,7 @@ public class NativeImageHeapGraph {
         long theRest = totalHeapSizeInBytes - dynamicHubsSizeInBytes - internedStringsSizeInBytes - imageCodeInfoSizeInBytes - resourcesSizeInBytes;
         out.printf("\tImage code info size: %s\n", Utils.bytesToHuman(imageCodeInfoSizeInBytes));
         out.printf("\tDynamic hubs size: %s\n", Utils.bytesToHuman(dynamicHubsSizeInBytes));
-        out.printf("\tInterned strings size: %s\n", Utils.bytesToHuman(internedStringsSizeInBytes));
+        out.printf("\tInterned strings table size: %s\n", Utils.bytesToHuman(internedStringsSizeInBytes));
         out.printf("\tResources byte arrays size: %s\n", Utils.bytesToHuman(resourcesSizeInBytes));
         out.printf("\tIn connected components report: %s\n", Utils.bytesToHuman(theRest));
         out.printf("Total number of objects in the heap: %d\n", this.heap.getObjects().size());
@@ -406,7 +401,8 @@ public class NativeImageHeapGraph {
             return String.format("Method(%s)", reason);
         } else if (reason instanceof ObjectInfo) {
             ObjectInfo r = (ObjectInfo) reason;
-            return String.format("ObjectInfo(class %s, %d, %s, %s)", r.getObjectClass().getName(), r.getIdentityHashCode(), constantAsString(bb, r.getConstant()), r.getPulledInBySetAsString());
+            return String.format("ObjectInfo(class %s, %d, %s, %s, %s)", r.getObjectClass().getName(), r.getIdentityHashCode(), constantAsString(bb, r.getConstant()), r.getPulledInBySetAsString(),
+                    formatReason(r.getMainReason()));
         } else if (reason instanceof HostedField) {
             HostedField r = (HostedField) reason;
             return r.format("HostedField(class %H { static %t %n; })");
