@@ -112,7 +112,7 @@ public abstract class LiteralRegexExecNode extends RegexExecNode implements Json
 
     @Specialization(guards = "neitherByteArrayNorString(input)")
     RegexResult doTruffleObject(Object input, int fromIndex,
-                    @Cached("createClassProfile()") ValueProfile inputClassProfile) {
+                    @Cached ValueProfile inputClassProfile) {
         return implNode.execute(inputClassProfile.profile(input), fromIndex, getEncoding(), false);
     }
 
