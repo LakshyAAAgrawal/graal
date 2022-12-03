@@ -58,6 +58,7 @@ import org.graalvm.wasm.nodes.WasmFunctionNode;
 
 import com.oracle.truffle.api.CompilerDirectives;
 import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
+import com.oracle.truffle.api.dsl.Bind;
 import com.oracle.truffle.api.dsl.Cached;
 import com.oracle.truffle.api.dsl.Cached.Shared;
 import com.oracle.truffle.api.interop.InteropLibrary;
@@ -70,7 +71,7 @@ import com.oracle.truffle.api.library.CachedLibrary;
 import com.oracle.truffle.api.library.ExportLibrary;
 import com.oracle.truffle.api.library.ExportMessage;
 import com.oracle.truffle.api.nodes.Node;
-import com.oracle.truffle.api.profiles.BranchProfile;
+import com.oracle.truffle.api.profiles.InlinedBranchProfile;
 
 @ExportLibrary(InteropLibrary.class)
 public abstract class WasmMemory extends EmbedderDataHolder implements TruffleObject {
@@ -230,7 +231,7 @@ public abstract class WasmMemory extends EmbedderDataHolder implements TruffleOb
 
     /**
      * Initializes the content of the memory based on the given data instance.
-     * 
+     *
      * @param dataInstance The source data instance that should be copied to the memory
      * @param sourceOffset The offset in the source data segment
      * @param destinationOffset The offset in the memory
@@ -240,7 +241,7 @@ public abstract class WasmMemory extends EmbedderDataHolder implements TruffleOb
 
     /**
      * Fills the memory with the given value.
-     * 
+     *
      * @param offset The offset in the memory
      * @param length The number of bytes that should be filled
      * @param value The value that should be used for filling the memory
@@ -249,7 +250,7 @@ public abstract class WasmMemory extends EmbedderDataHolder implements TruffleOb
 
     /**
      * Copies data from another memory into this memory.
-     * 
+     *
      * @param source The source memory
      * @param sourceOffset The offset in the source memory
      * @param destinationOffset The offset in this memory
@@ -408,24 +409,26 @@ public abstract class WasmMemory extends EmbedderDataHolder implements TruffleOb
         return byteSize();
     }
 
-    private void checkOffset(long byteOffset, int opLength, BranchProfile errorBranch) throws InvalidBufferOffsetException {
+    private void checkOffset(Node node, long byteOffset, int opLength, InlinedBranchProfile errorBranch) throws InvalidBufferOffsetException {
         if (byteOffset < 0 || getBufferSize() - opLength < byteOffset) {
-            errorBranch.enter();
+            errorBranch.enter(node);
             throw InvalidBufferOffsetException.create(byteOffset, opLength);
         }
     }
 
     @ExportMessage
     final byte readBufferByte(long byteOffset,
-                    @Shared("errorBranch") @Cached BranchProfile errorBranch) throws InvalidBufferOffsetException {
-        checkOffset(byteOffset, Byte.BYTES, errorBranch);
+                    @Bind("$node") Node node,
+                    @Shared("errorBranch") @Cached InlinedBranchProfile errorBranch) throws InvalidBufferOffsetException {
+        checkOffset(node, byteOffset, Byte.BYTES, errorBranch);
         return (byte) load_i32_8s(null, (int) byteOffset);
     }
 
     @ExportMessage
     final short readBufferShort(ByteOrder order, long byteOffset,
-                    @Shared("errorBranch") @Cached BranchProfile errorBranch) throws InvalidBufferOffsetException {
-        checkOffset(byteOffset, Short.BYTES, errorBranch);
+                    @Bind("$node") Node node,
+                    @Shared("errorBranch") @Cached InlinedBranchProfile errorBranch) throws InvalidBufferOffsetException {
+        checkOffset(node, byteOffset, Short.BYTES, errorBranch);
         short result = (short) load_i32_16s(null, (int) byteOffset);
         if (order == ByteOrder.BIG_ENDIAN) {
             result = Short.reverseBytes(result);
@@ -435,8 +438,9 @@ public abstract class WasmMemory extends EmbedderDataHolder implements TruffleOb
 
     @ExportMessage
     final int readBufferInt(ByteOrder order, long byteOffset,
-                    @Shared("errorBranch") @Cached BranchProfile errorBranch) throws InvalidBufferOffsetException {
-        checkOffset(byteOffset, Integer.BYTES, errorBranch);
+                    @Bind("$node") Node node,
+                    @Shared("errorBranch") @Cached InlinedBranchProfile errorBranch) throws InvalidBufferOffsetException {
+        checkOffset(node, byteOffset, Integer.BYTES, errorBranch);
         int result = load_i32(null, (int) byteOffset);
         if (order == ByteOrder.BIG_ENDIAN) {
             result = Integer.reverseBytes(result);
@@ -446,8 +450,9 @@ public abstract class WasmMemory extends EmbedderDataHolder implements TruffleOb
 
     @ExportMessage
     final long readBufferLong(ByteOrder order, long byteOffset,
-                    @Shared("errorBranch") @Cached BranchProfile errorBranch) throws InvalidBufferOffsetException {
-        checkOffset(byteOffset, Long.BYTES, errorBranch);
+                    @Bind("$node") Node node,
+                    @Shared("errorBranch") @Cached InlinedBranchProfile errorBranch) throws InvalidBufferOffsetException {
+        checkOffset(node, byteOffset, Long.BYTES, errorBranch);
         long result = load_i64(null, (int) byteOffset);
         if (order == ByteOrder.BIG_ENDIAN) {
             result = Long.reverseBytes(result);
@@ -457,8 +462,9 @@ public abstract class WasmMemory extends EmbedderDataHolder implements TruffleOb
 
     @ExportMessage
     final float readBufferFloat(ByteOrder order, long byteOffset,
-                    @Shared("errorBranch") @Cached BranchProfile errorBranch) throws InvalidBufferOffsetException {
-        checkOffset(byteOffset, Float.BYTES, errorBranch);
+                    @Bind("$node") Node node,
+                    @Shared("errorBranch") @Cached InlinedBranchProfile errorBranch) throws InvalidBufferOffsetException {
+        checkOffset(node, byteOffset, Float.BYTES, errorBranch);
         float result = load_f32(null, (int) byteOffset);
         if (order == ByteOrder.BIG_ENDIAN) {
             result = Float.intBitsToFloat(Integer.reverseBytes(Float.floatToRawIntBits(result)));
@@ -468,8 +474,9 @@ public abstract class WasmMemory extends EmbedderDataHolder implements TruffleOb
 
     @ExportMessage
     final double readBufferDouble(ByteOrder order, long byteOffset,
-                    @Shared("errorBranch") @Cached BranchProfile errorBranch) throws InvalidBufferOffsetException {
-        checkOffset(byteOffset, Double.BYTES, errorBranch);
+                    @Bind("$node") Node node,
+                    @Shared("errorBranch") @Cached InlinedBranchProfile errorBranch) throws InvalidBufferOffsetException {
+        checkOffset(node, byteOffset, Double.BYTES, errorBranch);
         double result = load_f64(null, (int) byteOffset);
         if (order == ByteOrder.BIG_ENDIAN) {
             result = Double.longBitsToDouble(Long.reverseBytes(Double.doubleToRawLongBits(result)));
@@ -485,47 +492,53 @@ public abstract class WasmMemory extends EmbedderDataHolder implements TruffleOb
 
     @ExportMessage
     final void writeBufferByte(long byteOffset, byte value,
-                    @Shared("errorBranch") @Cached BranchProfile errorBranch) throws InvalidBufferOffsetException {
-        checkOffset(byteOffset, Byte.BYTES, errorBranch);
+                    @Bind("$node") Node node,
+                    @Shared("errorBranch") @Cached InlinedBranchProfile errorBranch) throws InvalidBufferOffsetException {
+        checkOffset(node, byteOffset, Byte.BYTES, errorBranch);
         store_i32_8(null, (int) byteOffset, value);
     }
 
     @ExportMessage
     final void writeBufferShort(ByteOrder order, long byteOffset, short value,
-                    @Shared("errorBranch") @Cached BranchProfile errorBranch) throws InvalidBufferOffsetException {
-        checkOffset(byteOffset, Short.BYTES, errorBranch);
+                    @Bind("$node") Node node,
+                    @Shared("errorBranch") @Cached InlinedBranchProfile errorBranch) throws InvalidBufferOffsetException {
+        checkOffset(node, byteOffset, Short.BYTES, errorBranch);
         short actualValue = (order == ByteOrder.LITTLE_ENDIAN) ? value : Short.reverseBytes(value);
         store_i32_16(null, (int) byteOffset, actualValue);
     }
 
     @ExportMessage
     final void writeBufferInt(ByteOrder order, long byteOffset, int value,
-                    @Shared("errorBranch") @Cached BranchProfile errorBranch) throws InvalidBufferOffsetException {
-        checkOffset(byteOffset, Integer.BYTES, errorBranch);
+                    @Bind("$node") Node node,
+                    @Shared("errorBranch") @Cached InlinedBranchProfile errorBranch) throws InvalidBufferOffsetException {
+        checkOffset(node, byteOffset, Integer.BYTES, errorBranch);
         int actualValue = (order == ByteOrder.LITTLE_ENDIAN) ? value : Integer.reverseBytes(value);
         store_i32(null, (int) byteOffset, actualValue);
     }
 
     @ExportMessage
     final void writeBufferLong(ByteOrder order, long byteOffset, long value,
-                    @Shared("errorBranch") @Cached BranchProfile errorBranch) throws InvalidBufferOffsetException {
-        checkOffset(byteOffset, Long.BYTES, errorBranch);
+                    @Bind("$node") Node node,
+                    @Shared("errorBranch") @Cached InlinedBranchProfile errorBranch) throws InvalidBufferOffsetException {
+        checkOffset(node, byteOffset, Long.BYTES, errorBranch);
         long actualValue = (order == ByteOrder.LITTLE_ENDIAN) ? value : Long.reverseBytes(value);
         store_i64(null, (int) byteOffset, actualValue);
     }
 
     @ExportMessage
     final void writeBufferFloat(ByteOrder order, long byteOffset, float value,
-                    @Shared("errorBranch") @Cached BranchProfile errorBranch) throws InvalidBufferOffsetException {
-        checkOffset(byteOffset, Float.BYTES, errorBranch);
+                    @Bind("$node") Node node,
+                    @Shared("errorBranch") @Cached InlinedBranchProfile errorBranch) throws InvalidBufferOffsetException {
+        checkOffset(node, byteOffset, Float.BYTES, errorBranch);
         float actualValue = (order == ByteOrder.LITTLE_ENDIAN) ? value : Float.intBitsToFloat(Integer.reverseBytes(Float.floatToRawIntBits(value)));
         store_f32(null, (int) byteOffset, actualValue);
     }
 
     @ExportMessage
     final void writeBufferDouble(ByteOrder order, long byteOffset, double value,
-                    @Shared("errorBranch") @Cached BranchProfile errorBranch) throws InvalidBufferOffsetException {
-        checkOffset(byteOffset, Double.BYTES, errorBranch);
+                    @Bind("$node") Node node,
+                    @Shared("errorBranch") @Cached InlinedBranchProfile errorBranch) throws InvalidBufferOffsetException {
+        checkOffset(node, byteOffset, Double.BYTES, errorBranch);
         double actualValue = (order == ByteOrder.LITTLE_ENDIAN) ? value : Double.longBitsToDouble(Long.reverseBytes(Double.doubleToRawLongBits(value)));
         store_f64(null, (int) byteOffset, actualValue);
     }
@@ -558,9 +571,10 @@ public abstract class WasmMemory extends EmbedderDataHolder implements TruffleOb
 
     @ExportMessage
     public Object readArrayElement(long address,
-                    @Shared("errorBranch") @Cached BranchProfile errorBranch) throws InvalidArrayIndexException {
+                    @Bind("$node") Node node,
+                    @Shared("errorBranch") @Cached InlinedBranchProfile errorBranch) throws InvalidArrayIndexException {
         if (!isArrayElementReadable(address)) {
-            errorBranch.enter();
+            errorBranch.enter(node);
             throw InvalidArrayIndexException.create(address);
         }
         return load_i32_8u(null, (int) address);
@@ -568,18 +582,19 @@ public abstract class WasmMemory extends EmbedderDataHolder implements TruffleOb
 
     @ExportMessage
     public void writeArrayElement(long address, Object value,
+                    @Bind("$node") Node node,
                     @CachedLibrary(limit = "3") InteropLibrary valueLib,
-                    @Shared("errorBranch") @Cached BranchProfile errorBranch)
+                    @Shared("errorBranch") @Cached InlinedBranchProfile errorBranch)
                     throws InvalidArrayIndexException, UnsupportedMessageException, UnsupportedTypeException {
         if (!isArrayElementModifiable(address)) {
-            errorBranch.enter();
+            errorBranch.enter(node);
             throw InvalidArrayIndexException.create(address);
         }
         byte rawValue;
         if (valueLib.fitsInByte(value)) {
             rawValue = valueLib.asByte(value);
         } else {
-            errorBranch.enter();
+            errorBranch.enter(node);
             throw UnsupportedTypeException.create(new Object[]{value}, "Only bytes can be stored into WebAssembly memory.");
         }
         store_i32_8(null, (int) address, rawValue);
