@@ -1546,6 +1546,8 @@ public class FileSystemsTest {
     @Ignore("GR-42736")
     @Test
     public void testSetAttribute() {
+        Assume.assumeTrue(false);
+
         Context ctx = cfg.getContext();
         Path path = cfg.getPath();
         boolean canRead = cfg.canRead();

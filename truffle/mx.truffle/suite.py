@@ -328,6 +328,7 @@ suite = {
       "dependencies" : ["com.oracle.truffle.api"],
       "requires" : [
         "java.logging",
+        "jdk.unsupported", # sun.misc.Unsafe
       ],
       "checkstyle" : "com.oracle.truffle.api",
       "javaCompliance" : "11+",
@@ -340,6 +341,7 @@ suite = {
       "dependencies" : [
         "com.oracle.truffle.polyglot",
         "com.oracle.truffle.api.test",
+        "com.oracle.truffle.api.dsl",
         "com.oracle.truffle.api.library",
         "mx:JUNIT",
       ],
@@ -391,6 +393,7 @@ suite = {
       ],
       "requires" : [
         "java.compiler",
+        "jdk.management"
       ],
       "checkstyle" : "com.oracle.truffle.dsl.processor",
       "javaCompliance" : "11+",
@@ -620,7 +623,8 @@ suite = {
     "com.oracle.truffle.api.profiles" : {
       "subDir" : "src",
       "sourceDirs" : ["src"],
-      "dependencies" : ["com.oracle.truffle.api"],
+      "dependencies" : ["com.oracle.truffle.api", 
+                        "com.oracle.truffle.api.dsl"],
       "checkstyle" : "com.oracle.truffle.api",
       "javaCompliance" : "11+",
       "workingSets" : "API,Truffle",
