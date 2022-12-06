@@ -30,7 +30,6 @@ import static org.graalvm.compiler.nodeinfo.NodeSize.SIZE_2;
 
 import org.graalvm.compiler.core.common.memory.MemoryOrderMode;
 import org.graalvm.compiler.core.common.type.Stamp;
-import org.graalvm.compiler.graph.IterableNodeType;
 import org.graalvm.compiler.graph.NodeClass;
 import org.graalvm.compiler.nodeinfo.NodeInfo;
 import org.graalvm.compiler.nodeinfo.NodeSize;
@@ -48,17 +47,13 @@ import jdk.vm.ci.meta.ResolvedJavaField;
  * The base class of all instructions that access fields.
  */
 @NodeInfo(cycles = CYCLES_2, size = SIZE_1)
-public abstract class AccessFieldNode extends FixedWithNextNode implements Lowerable, OrderedMemoryAccess, MemoryAccess, IterableNodeType {
+public abstract class AccessFieldNode extends FixedWithNextNode implements Lowerable, OrderedMemoryAccess, MemoryAccess {
 
     public static final NodeClass<AccessFieldNode> TYPE = NodeClass.create(AccessFieldNode.class);
     @OptionalInput ValueNode object;
     protected final FieldLocationIdentity location;
     protected final ResolvedJavaField field;
     protected final MemoryOrderMode memoryOrder;
-
-    public ResolvedJavaField getField() {
-        return field;
-    }
 
     public ValueNode object() {
         return object;
