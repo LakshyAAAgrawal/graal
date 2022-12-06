@@ -1,7 +1,5 @@
 package com.oracle.svm.hosted.image;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -21,16 +19,6 @@ public final class DirectedGraph<Node> extends AbstractGraph<Node> {
 
     public boolean isRoot(Node node) {
         return nodeIsRoot.getOrDefault(node, false);
-    }
-
-    public List<Node> getLeaves() {
-        List<Node> result = new ArrayList<>();
-        for (Map.Entry<Node, NodeData> entry : this.nodes.entrySet())  {
-            if (entry.getValue().getNeighbours().size() == 0) {
-                result.add(entry.getKey());
-            }
-        }
-        return result;
     }
 
     public Set<Node> getRoots() {

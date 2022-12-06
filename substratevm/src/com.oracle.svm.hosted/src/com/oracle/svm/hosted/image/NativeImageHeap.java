@@ -29,7 +29,6 @@ import static com.oracle.svm.core.util.VMError.shouldNotReachHere;
 import java.lang.reflect.Array;
 import java.lang.reflect.Modifier;
 import java.util.ArrayDeque;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -37,13 +36,10 @@ import java.util.Deque;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-import com.oracle.svm.core.code.ImageCodeInfo;
-import com.oracle.svm.core.hub.DynamicHubCompanion;
 import org.graalvm.compiler.api.replacements.Fold;
 import org.graalvm.compiler.core.common.CompressEncoding;
 import org.graalvm.compiler.core.common.NumUtil;
@@ -59,11 +55,13 @@ import com.oracle.graal.pointsto.meta.AnalysisUniverse;
 import com.oracle.graal.pointsto.util.AnalysisError;
 import com.oracle.svm.core.StaticFieldsSupport;
 import com.oracle.svm.core.SubstrateOptions;
+import com.oracle.svm.core.code.ImageCodeInfo;
 import com.oracle.svm.core.config.ConfigurationValues;
 import com.oracle.svm.core.config.ObjectLayout;
 import com.oracle.svm.core.heap.FillerObject;
 import com.oracle.svm.core.heap.Heap;
 import com.oracle.svm.core.hub.DynamicHub;
+import com.oracle.svm.core.hub.DynamicHubCompanion;
 import com.oracle.svm.core.hub.LayoutEncoding;
 import com.oracle.svm.core.image.ImageHeap;
 import com.oracle.svm.core.image.ImageHeapLayouter;
@@ -786,7 +784,6 @@ public final class NativeImageHeap implements ImageHeap {
         private final Object firstReason;
         private final Set<Object> allReasons;
         private final EnumSet<ObjectGroupRoot> objectGroupRootSet;
-        private boolean isRootObject = true;
 
         ObjectInfo(Object object, long size, HostedClass clazz, int identityHashCode, Object reason) {
             this(SubstrateObjectConstant.forObject(object), size, clazz, identityHashCode, reason);
@@ -808,10 +805,6 @@ public final class NativeImageHeap implements ImageHeap {
             this.allReasons.add(reason);
             // For diagnostic purposes only
             this.objectGroupRootSet = ObjectGroupRoot.getByObjectInfo(this);
-            // For diagnostic purposes only
-            if (reason instanceof ObjectInfo) {
-                this.isRootObject = false;
-            }
         }
 
         private EnumSet<ObjectGroupRoot> getBelongsToObjectGroup() {
@@ -826,9 +819,6 @@ public final class NativeImageHeap implements ImageHeap {
         private void addReason(Object reason) {
             this.allReasons.add(reason);
             this.objectGroupRootSet.addAll(ObjectGroupRoot.getByReason(reason));
-            if (reason instanceof ObjectInfo) {
-                this.isRootObject = false;
-            }
         }
 
         public Object getMainReason() {

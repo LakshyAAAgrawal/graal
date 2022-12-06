@@ -24,7 +24,6 @@
  */
 package com.oracle.svm.hosted.image;
 
-import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.util.Arrays;
 import java.util.Comparator;

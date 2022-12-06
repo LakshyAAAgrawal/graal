@@ -13,18 +13,19 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 
-import com.oracle.graal.pointsto.BigBang;
-import com.oracle.svm.core.jdk.Resources;
-import com.oracle.svm.core.jdk.resources.ResourceStorageEntry;
-import com.oracle.svm.hosted.Utils;
-import jdk.vm.ci.meta.JavaConstant;
-import jdk.vm.ci.meta.JavaKind;
 import org.graalvm.collections.EconomicMap;
 import org.graalvm.collections.Pair;
 
+import com.oracle.graal.pointsto.BigBang;
+import com.oracle.svm.core.jdk.Resources;
+import com.oracle.svm.core.jdk.resources.ResourceStorageEntry;
 import com.oracle.svm.core.util.VMError;
+import com.oracle.svm.hosted.Utils;
 import com.oracle.svm.hosted.image.NativeImageHeap.ObjectInfo;
 import com.oracle.svm.hosted.meta.HostedField;
+
+import jdk.vm.ci.meta.JavaConstant;
+import jdk.vm.ci.meta.JavaKind;
 
 public class ImageHeapConnectedComponentsPrinter {
     private final NativeImageHeap heap;
@@ -55,7 +56,7 @@ public class ImageHeapConnectedComponentsPrinter {
         this.totalHeapSizeInBytes = image.getImageHeapSize();
         this.bb = bigBang;
         this.groups = new EnumMap<>(NativeImageHeap.ObjectGroupRoot.class);
-        this.connectedComponents = computeConnectedComponents(this.heap);
+        this.connectedComponents = computeConnectedComponents();
     }
 
     private static <T> Set<T> getHashSetInstance() {
@@ -69,7 +70,7 @@ public class ImageHeapConnectedComponentsPrinter {
         return true;
     }
 
-    private List<ConnectedComponent> computeConnectedComponents(NativeImageHeap heap) {
+    private List<ConnectedComponent> computeConnectedComponents() {
         Set<ObjectInfo> allImageHeapObjects = getHashSetInstance();
         allImageHeapObjects.addAll(
                         heap.getObjects().stream()
@@ -90,8 +91,8 @@ public class ImageHeapConnectedComponentsPrinter {
             groups.put(objectGroupRoot, new GroupEntry(objects));
         }
         AbstractGraph<ObjectInfo> graph = constructGraph(groups.get(NativeImageHeap.ObjectGroupRoot.MethodOrHostedField).objects);
-        List<ConnectedComponent> connectedComponents = new ArrayList<>(computeConnectedComponentsInGraph(graph));
-        return connectedComponents.stream()
+        List<ConnectedComponent> result = new ArrayList<>(computeConnectedComponentsInGraph(graph));
+        return result.stream()
                         .sorted(Comparator.comparing(ConnectedComponent::getSizeInBytes).reversed())
                         .collect(Collectors.toList());
     }
@@ -105,7 +106,7 @@ public class ImageHeapConnectedComponentsPrinter {
         }
         return collector.getListOfObjectsForEachComponent()
                         .stream()
-                        .map(objectsForComponent -> new ConnectedComponent(objectsForComponent, this.heap))
+                        .map(ConnectedComponent::new)
                         .collect(Collectors.toList());
     }
 
@@ -148,7 +149,7 @@ public class ImageHeapConnectedComponentsPrinter {
         return result;
     }
 
-    private AbstractGraph<ObjectInfo> constructGraph(Set<ObjectInfo> objects) {
+    private static AbstractGraph<ObjectInfo> constructGraph(Set<ObjectInfo> objects) {
         AbstractGraph<ObjectInfo> graph = getGraphInstance();
         for (ObjectInfo objectInfo : objects) {
             graph.addNode(objectInfo);
@@ -187,7 +188,7 @@ public class ImageHeapConnectedComponentsPrinter {
         for (int i = 0; i < connectedComponents.size(); i++) {
             ConnectedComponent connectedComponent = connectedComponents.get(i);
             for (ObjectInfo info : connectedComponent.getObjects()) {
-                out.printf("ComponentId=%d=%s\n", i, formatObject(info, bb));
+                out.printf("ComponentId=%d=%s\n", i, formatObject(info));
             }
         }
         printObjectsInGroup(out, NativeImageHeap.ObjectGroupRoot.DynamicHubs);
@@ -197,7 +198,7 @@ public class ImageHeapConnectedComponentsPrinter {
 
     private void printObjectsInGroup(PrintWriter out, NativeImageHeap.ObjectGroupRoot objectGroup) {
         for (ObjectInfo objectInfo : groups.get(objectGroup).objects) {
-            out.printf("ObjectGroup=%s=%s\n", objectGroup, formatObject(objectInfo, bb));
+            out.printf("ObjectGroup=%s=%s\n", objectGroup, formatObject(objectInfo));
         }
     }
 
@@ -223,7 +224,7 @@ public class ImageHeapConnectedComponentsPrinter {
             if (connectedComponent.getObjects().get(0).belongsTo(NativeImageHeap.ObjectGroupRoot.ImageCodeInfo)) {
                 continue;
             }
-            float percentageOfTotalHeapSize = 100.0f * (float) connectedComponent.getSizeInBytes() /
+            float percentageOfTotalHeapSize = 100.0f * connectedComponent.getSizeInBytes() /
                             this.totalHeapSizeInBytes;
             HeapHistogram objectHistogram = new HeapHistogram(out);
             connectedComponent.getObjects().forEach(o -> objectHistogram.add(o, o.getSize()));
@@ -320,7 +321,7 @@ public class ImageHeapConnectedComponentsPrinter {
         }
     }
 
-    private String formatObject(ObjectInfo objectInfo, BigBang bb) {
+    private String formatObject(ObjectInfo objectInfo) {
         return String.format("ObjectInfo(class %s, %d, %s, %s)", objectInfo.getObject().getClass().getName(), objectInfo.getIdentityHashCode(), constantAsString(bb, objectInfo.getConstant()), formatReason(objectInfo.getMainReason()));
     }
 
@@ -355,6 +356,7 @@ public class ImageHeapConnectedComponentsPrinter {
         }
 
         @Override
+        @SuppressWarnings("unused")
         public void onStart(AbstractGraph<ObjectInfo> graph) {
             connectedComponents.add(new ArrayList<>());
         }
@@ -367,6 +369,7 @@ public class ImageHeapConnectedComponentsPrinter {
         }
 
         @Override
+        @SuppressWarnings("unused")
         public void onEnd(AbstractGraph<ObjectInfo> graph) {
             ++componentId;
         }
@@ -392,16 +395,10 @@ public class ImageHeapConnectedComponentsPrinter {
     private final static class ConnectedComponent {
         private final List<ObjectInfo> objects;
         private final long size;
-        private final Set<Object> reasons;
 
-        public ConnectedComponent(List<ObjectInfo> objects, NativeImageHeap heap) {
+        public ConnectedComponent(List<ObjectInfo> objects) {
             this.objects = objects;
             this.size = computeComponentSize(objects);
-            this.reasons = Collections.newSetFromMap(new IdentityHashMap<>());
-        }
-
-        public Set<Object> getReasons() {
-            return reasons;
         }
 
         private static long computeComponentSize(List<ObjectInfo> objects) {
