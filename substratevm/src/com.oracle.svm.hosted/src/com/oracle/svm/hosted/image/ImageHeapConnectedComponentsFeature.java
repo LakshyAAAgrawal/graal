@@ -16,8 +16,8 @@ import java.util.function.Consumer;
 @AutomaticallyRegisteredFeature
 public class ImageHeapConnectedComponentsFeature implements InternalFeature {
     public static class Options {
-        @Option(help = {"Prints report about objects in the Image heap grouped into connected components by their references to other objects in Image heap"}, type = OptionType.Debug)
-        public static final HostedOptionKey<Boolean> PrintImageHeapConnectedComponents = new HostedOptionKey<>(false);
+        @Option(help = {"Prints report about objects in the Image heap grouped into connected components by their references to other objects in Image heap"}, type = OptionType.Debug) public static final HostedOptionKey<Boolean> PrintImageHeapConnectedComponents = new HostedOptionKey<>(
+                        false);
     }
 
     private AbstractImage image;

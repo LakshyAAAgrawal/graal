@@ -147,7 +147,7 @@ public class ImageHeapConnectedComponentsPrinter {
     }
 
     private static Graph<ObjectInfo> constructGraph(Set<ObjectInfo> objects) {
-        Graph<ObjectInfo> graph =  new Graph<>();
+        Graph<ObjectInfo> graph = new Graph<>();
         for (ObjectInfo objectInfo : objects) {
             graph.addNode(objectInfo);
             for (Object referencesToThisObject : objectInfo.getAllReasons()) {
@@ -257,9 +257,9 @@ public class ImageHeapConnectedComponentsPrinter {
         }
 
         NativeImageHeap.ObjectReachability[] headerGroups = {
-                NativeImageHeap.ObjectReachability.DynamicHubs,
-                NativeImageHeap.ObjectReachability.ImageCodeInfo,
-                NativeImageHeap.ObjectReachability.Resources
+                        NativeImageHeap.ObjectReachability.DynamicHubs,
+                        NativeImageHeap.ObjectReachability.ImageCodeInfo,
+                        NativeImageHeap.ObjectReachability.Resources
         };
 
         for (NativeImageHeap.ObjectReachability groupType : headerGroups) {
@@ -268,8 +268,8 @@ public class ImageHeapConnectedComponentsPrinter {
             groupEntry.objects.forEach(o -> objectHistogram.add(o, o.getSize()));
             float percentageOfTotalHeapSize = 100.0f * groupEntry.sizeInBytes / this.totalHeapSizeInBytes;
             String headingInfo = String.format("Group=%s | Size=%s | Percentage of total image heap size=%.4f%%", groupType,
-                    Utils.bytesToHuman(groups.get(groupType).sizeInBytes),
-                    percentageOfTotalHeapSize);
+                            Utils.bytesToHuman(groups.get(groupType).sizeInBytes),
+                            percentageOfTotalHeapSize);
             out.println();
             String fullHeading = fillHeading(headingInfo);
             objectHistogram.printHeadings(String.format("%s\n%s", "=".repeat(fullHeading.length()), fullHeading));
@@ -335,7 +335,8 @@ public class ImageHeapConnectedComponentsPrinter {
     }
 
     private String formatObject(ObjectInfo objectInfo) {
-        return String.format("ObjectInfo(class %s, %d, %s, %s)", objectInfo.getObject().getClass().getName(), objectInfo.getIdentityHashCode(), constantAsString(bb, objectInfo.getConstant()), formatReason(objectInfo.getMainReason()));
+        return String.format("ObjectInfo(class %s, %d, %s, %s)", objectInfo.getObject().getClass().getName(), objectInfo.getIdentityHashCode(), constantAsString(bb, objectInfo.getConstant()),
+                        formatReason(objectInfo.getMainReason()));
     }
 
     private static Object constantAsObject(BigBang bb, JavaConstant constant) {
@@ -427,9 +428,11 @@ public class ImageHeapConnectedComponentsPrinter {
 
 class Graph<Node> {
     protected final Map<Node, NodeData> nodes = hashMapInstance();
-    protected <K,V> Map<K,V> hashMapInstance() {
+
+    protected <K, V> Map<K, V> hashMapInstance() {
         return new IdentityHashMap<>();
     }
+
     protected <K> Set<K> hashSetInstance() {
         return Collections.newSetFromMap(hashMapInstance());
     }
@@ -465,6 +468,7 @@ class Graph<Node> {
         }
         return nodeData.getNodeId();
     }
+
     Set<Node> getNeighbours(Node a) {
         NodeData nodeData = nodes.get(a);
         if (nodeData == null) {
@@ -508,11 +512,21 @@ class Graph<Node> {
 
     interface NodeVisitor<Node> {
         void accept(VisitorState<Node> state);
-        default void onStart() {}
-        default void onEnd() {}
-        default boolean shouldTerminateVisit() { return false; }
+
+        default void onStart() {
+        }
+
+        default void onEnd() {
+        }
+
+        default boolean shouldTerminateVisit() {
+            return false;
+        }
+
         @SuppressWarnings("unused")
-        default boolean shouldVisit(Node node) { return true; }
+        default boolean shouldVisit(Node node) {
+            return true;
+        }
     }
 
     final static class VisitorState<Node> {

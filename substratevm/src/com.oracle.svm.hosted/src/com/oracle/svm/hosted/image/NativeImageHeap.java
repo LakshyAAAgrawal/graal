@@ -952,12 +952,12 @@ public final class NativeImageHeap implements ImageHeap {
                 if (reason.toString().equals("internedStrings table")) {
                     return EnumSet.of(InternedStringsTable);
                 }
-//                if (reason.toString().equals("staticObjectFields")) {
-//                    return EnumSet.of(StaticObjectFields);
-//                }
-//                if (reason.toString().equals("staticPrimitiveFields")) {
-//                    return EnumSet.of(StaticPrimitiveFields);
-//                }
+// if (reason.toString().equals("staticObjectFields")) {
+// return EnumSet.of(StaticObjectFields);
+// }
+// if (reason.toString().equals("staticPrimitiveFields")) {
+// return EnumSet.of(StaticPrimitiveFields);
+// }
                 return EnumSet.of(MethodOrStaticField);
             } else if (reason instanceof HostedField) {
                 return EnumSet.of(MethodOrStaticField);
