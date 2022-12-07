@@ -1,36 +1,30 @@
 package com.oracle.svm.hosted.image;
 
-import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.Map;
-import java.util.Queue;
 import java.util.Set;
 import java.util.Stack;
 
 public abstract class AbstractGraph<Node> {
-
     protected final Map<Node, NodeData> nodes = hashMapInstance();
-
     protected <K,V> Map<K,V> hashMapInstance() {
-        return new IdentityHashMap<K, V>();
+        return new IdentityHashMap<>();
     }
-
     protected <K> Set<K> hashSetInstance() {
         return Collections.newSetFromMap(hashMapInstance());
     }
-
     protected long numberOfEdges = 0;
 
     public boolean inGraph(Node n) {
         return nodes.containsKey(n);
     }
 
-    protected void doConnect(Map<Node, NodeData> nodes, Node from, Node to) {
+    protected void doConnect(Map<Node, NodeData> nodeToData, Node from, Node to) {
         if (from == null || to == null)
             return;
-        NodeData fromNodeData = addNode(nodes, from);
-        addNode(nodes, to);
+        NodeData fromNodeData = addNode(nodeToData, from);
+        addNode(nodeToData, to);
         boolean connectionExisted = !fromNodeData.getNeighbours().add(to);
         numberOfEdges += !connectionExisted ? 1 : 0;
     }
@@ -51,11 +45,11 @@ public abstract class AbstractGraph<Node> {
         addNode(nodes, a);
     }
 
-    protected NodeData addNode(Map<Node, NodeData> nodes, Node a) {
-        if (nodes.containsKey(a)) {
-            return nodes.get(a);
+    protected NodeData addNode(Map<Node, NodeData> nodeToData, Node a) {
+        if (nodeToData.containsKey(a)) {
+            return nodeToData.get(a);
         }
-        return nodes.computeIfAbsent(a, node -> new NodeData(nodes.size()));
+        return nodeToData.computeIfAbsent(a, node -> new NodeData(nodeToData.size()));
     }
 
     public Set<Node> getNodesSet() {
@@ -90,7 +84,7 @@ public abstract class AbstractGraph<Node> {
     }
 
     public <T extends NodeVisitor<Node>> T dfs(Node start, T nodeVisitor) {
-        nodeVisitor.onStart(this);
+        nodeVisitor.onStart();
         Stack<VisitorState<Node>> stack = new Stack<>();
         boolean[] visited = new boolean[getNumberOfNodes()];
         stack.add(new VisitorState<>(null, start, 0));
@@ -104,7 +98,7 @@ public abstract class AbstractGraph<Node> {
             if (!nodeVisitor.shouldVisit(state.currentNode)) {
                 continue;
             }
-            nodeVisitor.accept(this, state);
+            nodeVisitor.accept(state);
             if (nodeVisitor.shouldTerminateVisit()) {
                 break;
             }
@@ -114,39 +108,16 @@ public abstract class AbstractGraph<Node> {
                 }
             }
         }
-        nodeVisitor.onEnd(this);
-        return nodeVisitor;
-    }
-
-    public NodeVisitor<Node> bfs(Node start, NodeVisitor<Node> nodeVisitor) {
-        Queue<VisitorState<Node>> queue = new ArrayDeque<>();
-        boolean[] visited = new boolean[getNumberOfNodes()];
-        queue.add(new VisitorState<>(null, start, 0));
-        while (!queue.isEmpty()) {
-            VisitorState<Node> state = queue.poll();
-            int currentNodeId = getNodeId(state.currentNode);
-            if (visited[currentNodeId]) {
-                continue;
-            }
-            visited[currentNodeId] = true;
-            nodeVisitor.accept(this, state);
-            if (nodeVisitor.shouldTerminateVisit()) {
-                break;
-            }
-            for (Node neighbour : getNeighbours(state.currentNode)) {
-                if (!visited[getNodeId(neighbour)]) {
-                    queue.offer(new VisitorState<>(state.currentNode, neighbour, state.level + 1));
-                }
-            }
-        }
+        nodeVisitor.onEnd();
         return nodeVisitor;
     }
 
     interface NodeVisitor<Node> {
-        void accept(AbstractGraph<Node> graph, VisitorState<Node> state);
-        default void onStart(AbstractGraph<Node> graph) {}
-        default void onEnd(AbstractGraph<Node> graph) {}
+        void accept(VisitorState<Node> state);
+        default void onStart() {}
+        default void onEnd() {}
         default boolean shouldTerminateVisit() { return false; }
+        @SuppressWarnings("unused")
         default boolean shouldVisit(Node node) { return true; }
     }
 

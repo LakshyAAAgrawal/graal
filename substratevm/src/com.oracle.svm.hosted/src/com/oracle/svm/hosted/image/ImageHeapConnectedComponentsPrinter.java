@@ -97,7 +97,7 @@ public class ImageHeapConnectedComponentsPrinter {
                         .collect(Collectors.toList());
     }
 
-    private List<ConnectedComponent> computeConnectedComponentsInGraph(AbstractGraph<ObjectInfo> graph) {
+    private static List<ConnectedComponent> computeConnectedComponentsInGraph(AbstractGraph<ObjectInfo> graph) {
         ConnectedComponentsCollector collector = new ConnectedComponentsCollector(graph);
         for (ObjectInfo node : graph.getRoots()) {
             if (collector.isNotVisited(node)) {
@@ -248,7 +248,7 @@ public class ImageHeapConnectedComponentsPrinter {
                     out.printf("\t%s\n", field.format("%H#%n"));
                 }
                 if (staticFields.size() > entryPointLimit) {
-                    out.printf("\t... %d more in the entry points report\n", staticFields.size() - entryPointLimit);
+                    out.printf("\t... %d more in the access_points report\n", staticFields.size() - entryPointLimit);
                 }
             }
             if (!methods.isEmpty()) {
@@ -257,7 +257,7 @@ public class ImageHeapConnectedComponentsPrinter {
                     out.printf("\t%s\n", formatMethodAsLink(methodName));
                 }
                 if (methods.size() > entryPointLimit) {
-                    out.printf("\t... %d more in the access_points_* report\n", methods.size() - entryPointLimit);
+                    out.printf("\t... %d more in the access_points report\n", methods.size() - entryPointLimit);
                 }
             }
         }
@@ -357,12 +357,12 @@ public class ImageHeapConnectedComponentsPrinter {
 
         @Override
         @SuppressWarnings("unused")
-        public void onStart(AbstractGraph<ObjectInfo> graph) {
+        public void onStart() {
             connectedComponents.add(new ArrayList<>());
         }
 
         @Override
-        public void accept(AbstractGraph<ObjectInfo> graph, AbstractGraph.VisitorState<ObjectInfo> state) {
+        public void accept(AbstractGraph.VisitorState<ObjectInfo> state) {
             int nodeId = graph.getNodeId(state.currentNode);
             this.visited[nodeId] = true;
             connectedComponents.get(componentId).add(state.currentNode);
@@ -370,7 +370,7 @@ public class ImageHeapConnectedComponentsPrinter {
 
         @Override
         @SuppressWarnings("unused")
-        public void onEnd(AbstractGraph<ObjectInfo> graph) {
+        public void onEnd() {
             ++componentId;
         }
 
