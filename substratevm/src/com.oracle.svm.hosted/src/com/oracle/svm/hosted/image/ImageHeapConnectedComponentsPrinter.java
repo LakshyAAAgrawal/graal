@@ -9,7 +9,9 @@ import java.util.EnumMap;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.Stack;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 
@@ -33,6 +35,7 @@ public class ImageHeapConnectedComponentsPrinter {
     private final List<ConnectedComponent> connectedComponents;
     private final BigBang bb;
     private final String imageName;
+    private final EnumMap<NativeImageHeap.ObjectReachability, GroupEntry> groups;
 
     private static class GroupEntry {
         public final Set<ObjectInfo> objects;
@@ -44,18 +47,12 @@ public class ImageHeapConnectedComponentsPrinter {
         }
     }
 
-    private final EnumMap<NativeImageHeap.ObjectGroupRoot, GroupEntry> groups;
-
-    private static AbstractGraph<ObjectInfo> getGraphInstance() {
-        return new UndirectedGraph<>();
-    }
-
     public ImageHeapConnectedComponentsPrinter(NativeImageHeap heap, BigBang bigBang, AbstractImage image, String imageName) {
         this.heap = heap;
         this.imageName = imageName;
         this.totalHeapSizeInBytes = image.getImageHeapSize();
         this.bb = bigBang;
-        this.groups = new EnumMap<>(NativeImageHeap.ObjectGroupRoot.class);
+        this.groups = new EnumMap<>(NativeImageHeap.ObjectReachability.class);
         this.connectedComponents = computeConnectedComponents();
     }
 
@@ -78,28 +75,28 @@ public class ImageHeapConnectedComponentsPrinter {
                                         .collect(Collectors.toList()));
 
         // The order matters.
-        NativeImageHeap.ObjectGroupRoot[] objectGroupRoots = {
-                        NativeImageHeap.ObjectGroupRoot.Resources,
-                        NativeImageHeap.ObjectGroupRoot.InternedStringsTable,
-                        NativeImageHeap.ObjectGroupRoot.DynamicHubs,
-                        NativeImageHeap.ObjectGroupRoot.ImageCodeInfo,
-                        NativeImageHeap.ObjectGroupRoot.MethodOrHostedField
+        NativeImageHeap.ObjectReachability[] objectReachability = {
+                        NativeImageHeap.ObjectReachability.Resources,
+                        NativeImageHeap.ObjectReachability.InternedStringsTable,
+                        NativeImageHeap.ObjectReachability.DynamicHubs,
+                        NativeImageHeap.ObjectReachability.ImageCodeInfo,
+                        NativeImageHeap.ObjectReachability.MethodOrStaticField
         };
 
-        for (NativeImageHeap.ObjectGroupRoot objectGroupRoot : objectGroupRoots) {
-            Set<ObjectInfo> objects = removeObjectsBy(objectGroupRoot, allImageHeapObjects, heap);
-            groups.put(objectGroupRoot, new GroupEntry(objects));
+        for (NativeImageHeap.ObjectReachability reachability : objectReachability) {
+            Set<ObjectInfo> objects = removeObjectsBy(reachability, allImageHeapObjects, heap);
+            groups.put(reachability, new GroupEntry(objects));
         }
-        AbstractGraph<ObjectInfo> graph = constructGraph(groups.get(NativeImageHeap.ObjectGroupRoot.MethodOrHostedField).objects);
+        Graph<ObjectInfo> graph = constructGraph(groups.get(NativeImageHeap.ObjectReachability.MethodOrStaticField).objects);
         List<ConnectedComponent> result = new ArrayList<>(computeConnectedComponentsInGraph(graph));
         return result.stream()
                         .sorted(Comparator.comparing(ConnectedComponent::getSizeInBytes).reversed())
                         .collect(Collectors.toList());
     }
 
-    private static List<ConnectedComponent> computeConnectedComponentsInGraph(AbstractGraph<ObjectInfo> graph) {
+    private static List<ConnectedComponent> computeConnectedComponentsInGraph(Graph<ObjectInfo> graph) {
         ConnectedComponentsCollector collector = new ConnectedComponentsCollector(graph);
-        for (ObjectInfo node : graph.getRoots()) {
+        for (ObjectInfo node : graph.getNodesSet()) {
             if (collector.isNotVisited(node)) {
                 graph.dfs(node, collector);
             }
@@ -125,12 +122,12 @@ public class ImageHeapConnectedComponentsPrinter {
         return result;
     }
 
-    private static Set<ObjectInfo> removeObjectsBy(NativeImageHeap.ObjectGroupRoot reason, Set<ObjectInfo> objects, NativeImageHeap heap) {
-        if (reason == NativeImageHeap.ObjectGroupRoot.Resources) {
+    private static Set<ObjectInfo> removeObjectsBy(NativeImageHeap.ObjectReachability reason, Set<ObjectInfo> objects, NativeImageHeap heap) {
+        if (reason == NativeImageHeap.ObjectReachability.Resources) {
             return removeResources(objects, heap);
         }
         Set<ObjectInfo> result = getHashSetInstance();
-        if (reason == NativeImageHeap.ObjectGroupRoot.InternedStringsTable) {
+        if (reason == NativeImageHeap.ObjectReachability.InternedStringsTable) {
             for (ObjectInfo info : objects) {
                 if (info.isInternedStringsTable()) {
                     result.add(info);
@@ -149,8 +146,8 @@ public class ImageHeapConnectedComponentsPrinter {
         return result;
     }
 
-    private static AbstractGraph<ObjectInfo> constructGraph(Set<ObjectInfo> objects) {
-        AbstractGraph<ObjectInfo> graph = getGraphInstance();
+    private static Graph<ObjectInfo> constructGraph(Set<ObjectInfo> objects) {
+        Graph<ObjectInfo> graph =  new Graph<>();
         for (ObjectInfo objectInfo : objects) {
             graph.addNode(objectInfo);
             for (Object referencesToThisObject : objectInfo.getAllReasons()) {
@@ -191,12 +188,12 @@ public class ImageHeapConnectedComponentsPrinter {
                 out.printf("ComponentId=%d=%s\n", i, formatObject(info));
             }
         }
-        printObjectsInGroup(out, NativeImageHeap.ObjectGroupRoot.DynamicHubs);
-        printObjectsInGroup(out, NativeImageHeap.ObjectGroupRoot.ImageCodeInfo);
-        printObjectsInGroup(out, NativeImageHeap.ObjectGroupRoot.Resources);
+        printObjectsInGroup(out, NativeImageHeap.ObjectReachability.DynamicHubs);
+        printObjectsInGroup(out, NativeImageHeap.ObjectReachability.ImageCodeInfo);
+        printObjectsInGroup(out, NativeImageHeap.ObjectReachability.Resources);
     }
 
-    private void printObjectsInGroup(PrintWriter out, NativeImageHeap.ObjectGroupRoot objectGroup) {
+    private void printObjectsInGroup(PrintWriter out, NativeImageHeap.ObjectReachability objectGroup) {
         for (ObjectInfo objectInfo : groups.get(objectGroup).objects) {
             out.printf("ObjectGroup=%s=%s\n", objectGroup, formatObject(objectInfo));
         }
@@ -207,10 +204,10 @@ public class ImageHeapConnectedComponentsPrinter {
         out.println(fillHeading(title));
         out.println(fillHeading(imageName));
         out.printf("Total Heap Size: %s\n", Utils.bytesToHuman(totalHeapSizeInBytes));
-        long imageCodeInfoSizeInBytes = groups.get(NativeImageHeap.ObjectGroupRoot.ImageCodeInfo).sizeInBytes;
-        long dynamicHubsSizeInBytes = groups.get(NativeImageHeap.ObjectGroupRoot.DynamicHubs).sizeInBytes;
-        long internedStringsSizeInBytes = groups.get(NativeImageHeap.ObjectGroupRoot.InternedStringsTable).sizeInBytes;
-        long resourcesSizeInBytes = groups.get(NativeImageHeap.ObjectGroupRoot.Resources).sizeInBytes;
+        long imageCodeInfoSizeInBytes = groups.get(NativeImageHeap.ObjectReachability.ImageCodeInfo).sizeInBytes;
+        long dynamicHubsSizeInBytes = groups.get(NativeImageHeap.ObjectReachability.DynamicHubs).sizeInBytes;
+        long internedStringsSizeInBytes = groups.get(NativeImageHeap.ObjectReachability.InternedStringsTable).sizeInBytes;
+        long resourcesSizeInBytes = groups.get(NativeImageHeap.ObjectReachability.Resources).sizeInBytes;
         long theRest = totalHeapSizeInBytes - dynamicHubsSizeInBytes - internedStringsSizeInBytes - imageCodeInfoSizeInBytes - resourcesSizeInBytes;
         out.printf("\tImage code info size: %s\n", Utils.bytesToHuman(imageCodeInfoSizeInBytes));
         out.printf("\tDynamic hubs size: %s\n", Utils.bytesToHuman(dynamicHubsSizeInBytes));
@@ -221,9 +218,6 @@ public class ImageHeapConnectedComponentsPrinter {
         out.printf("Number of connected components in the report %d", this.connectedComponents.size());
         for (int i = 0; i < connectedComponents.size(); i++) {
             ConnectedComponent connectedComponent = connectedComponents.get(i);
-            if (connectedComponent.getObjects().get(0).belongsTo(NativeImageHeap.ObjectGroupRoot.ImageCodeInfo)) {
-                continue;
-            }
             float percentageOfTotalHeapSize = 100.0f * connectedComponent.getSizeInBytes() /
                             this.totalHeapSizeInBytes;
             HeapHistogram objectHistogram = new HeapHistogram(out);
@@ -260,6 +254,26 @@ public class ImageHeapConnectedComponentsPrinter {
                     out.printf("\t... %d more in the access_points report\n", methods.size() - entryPointLimit);
                 }
             }
+        }
+
+        NativeImageHeap.ObjectReachability[] headerGroups = {
+                NativeImageHeap.ObjectReachability.DynamicHubs,
+                NativeImageHeap.ObjectReachability.ImageCodeInfo,
+                NativeImageHeap.ObjectReachability.Resources
+        };
+
+        for (NativeImageHeap.ObjectReachability groupType : headerGroups) {
+            HeapHistogram objectHistogram = new HeapHistogram(out);
+            GroupEntry groupEntry = groups.get(groupType);
+            groupEntry.objects.forEach(o -> objectHistogram.add(o, o.getSize()));
+            float percentageOfTotalHeapSize = 100.0f * groupEntry.sizeInBytes / this.totalHeapSizeInBytes;
+            String headingInfo = String.format("Group=%s | Size=%s | Percentage of total image heap size=%.4f%%", groupType,
+                    Utils.bytesToHuman(groups.get(groupType).sizeInBytes),
+                    percentageOfTotalHeapSize);
+            out.println();
+            String fullHeading = fillHeading(headingInfo);
+            objectHistogram.printHeadings(String.format("%s\n%s", "=".repeat(fullHeading.length()), fullHeading));
+            objectHistogram.print();
         }
     }
 
@@ -311,7 +325,6 @@ public class ImageHeapConnectedComponentsPrinter {
         } else if (reason instanceof ObjectInfo) {
             ObjectInfo r = (ObjectInfo) reason;
             return r.toString();
-//            return String.format("ObjectInfo(class %s, %d, %s)", r.getObject().getClass().getName(), r.getIdentityHashCode(), r);
         } else if (reason instanceof HostedField) {
             HostedField r = (HostedField) reason;
             return r.format("StaticField(class %H { static %t %n; })");
@@ -344,32 +357,25 @@ public class ImageHeapConnectedComponentsPrinter {
         }
     }
 
-    private static final class ConnectedComponentsCollector implements AbstractGraph.NodeVisitor<ObjectInfo> {
-        private final AbstractGraph<ObjectInfo> graph;
+    private static final class ConnectedComponentsCollector implements Graph.NodeVisitor<ObjectInfo> {
+        private final Graph<ObjectInfo> graph;
         private final List<List<ObjectInfo>> connectedComponents = new ArrayList<>();
         private final boolean[] visited;
         private int componentId = 0;
 
-        public ConnectedComponentsCollector(AbstractGraph<ObjectInfo> graph) {
+        public ConnectedComponentsCollector(Graph<ObjectInfo> graph) {
             this.visited = new boolean[graph.getNumberOfNodes()];
             this.graph = graph;
         }
 
         @Override
-        @SuppressWarnings("unused")
-        public void onStart() {
-            connectedComponents.add(new ArrayList<>());
-        }
-
-        @Override
-        public void accept(AbstractGraph.VisitorState<ObjectInfo> state) {
+        public void accept(Graph.VisitorState<ObjectInfo> state) {
             int nodeId = graph.getNodeId(state.currentNode);
             this.visited[nodeId] = true;
             connectedComponents.get(componentId).add(state.currentNode);
         }
 
         @Override
-        @SuppressWarnings("unused")
         public void onEnd() {
             ++componentId;
         }
@@ -416,6 +422,126 @@ public class ImageHeapConnectedComponentsPrinter {
         public List<ObjectInfo> getObjects() {
             return objects;
         }
+    }
+}
 
+class Graph<Node> {
+    protected final Map<Node, NodeData> nodes = hashMapInstance();
+    protected <K,V> Map<K,V> hashMapInstance() {
+        return new IdentityHashMap<>();
+    }
+    protected <K> Set<K> hashSetInstance() {
+        return Collections.newSetFromMap(hashMapInstance());
+    }
+
+    private void doConnect(Node from, Node to) {
+        if (from == null || to == null)
+            throw VMError.shouldNotReachHere("Trying to connect null");
+        NodeData fromNodeData = addNode(from);
+        addNode(to);
+        fromNodeData.getNeighbours().add(to);
+    }
+
+    void connect(Node a, Node b) {
+        doConnect(a, b);
+        doConnect(b, a);
+    }
+
+    NodeData addNode(Node a) {
+        if (nodes.containsKey(a)) {
+            return nodes.get(a);
+        }
+        return nodes.computeIfAbsent(a, node -> new NodeData(nodes.size()));
+    }
+
+    Set<Node> getNodesSet() {
+        return nodes.keySet();
+    }
+
+    int getNodeId(Node node) {
+        NodeData nodeData = nodes.get(node);
+        if (nodeData == null) {
+            return -1;
+        }
+        return nodeData.getNodeId();
+    }
+    Set<Node> getNeighbours(Node a) {
+        NodeData nodeData = nodes.get(a);
+        if (nodeData == null) {
+            return Collections.emptySet();
+        }
+        return nodeData.getNeighbours();
+    }
+
+    int getNumberOfNodes() {
+        return nodes.size();
+    }
+
+    <T extends NodeVisitor<Node>> T dfs(Node start, T nodeVisitor) {
+        nodeVisitor.onStart();
+        Stack<VisitorState<Node>> stack = new Stack<>();
+        boolean[] visited = new boolean[getNumberOfNodes()];
+        stack.add(new VisitorState<>(null, start, 0));
+        while (!stack.isEmpty()) {
+            VisitorState<Node> state = stack.pop();
+            int currentNodeId = getNodeId(state.currentNode);
+            if (visited[currentNodeId]) {
+                continue;
+            }
+            visited[currentNodeId] = true;
+            if (!nodeVisitor.shouldVisit(state.currentNode)) {
+                continue;
+            }
+            nodeVisitor.accept(state);
+            if (nodeVisitor.shouldTerminateVisit()) {
+                break;
+            }
+            for (Node neighbour : getNeighbours(state.currentNode)) {
+                if (!visited[getNodeId(neighbour)]) {
+                    stack.push(new VisitorState<>(state.currentNode, neighbour, state.level + 1));
+                }
+            }
+        }
+        nodeVisitor.onEnd();
+        return nodeVisitor;
+    }
+
+    interface NodeVisitor<Node> {
+        void accept(VisitorState<Node> state);
+        default void onStart() {}
+        default void onEnd() {}
+        default boolean shouldTerminateVisit() { return false; }
+        @SuppressWarnings("unused")
+        default boolean shouldVisit(Node node) { return true; }
+    }
+
+    final static class VisitorState<Node> {
+        public final Node parentNode;
+        public final Node currentNode;
+        public final int level;
+
+        VisitorState(Node parent, Node current, int level) {
+            this.parentNode = parent;
+            this.currentNode = current;
+            this.level = level;
+        }
+    }
+
+    private class NodeData {
+        private final Set<Node> neighbours;
+        private final int nodeId;
+
+        public NodeData(int nodeId) {
+            this.neighbours = hashSetInstance();
+            this.nodeId = nodeId;
+        }
+
+        public Set<Node> getNeighbours() {
+            return neighbours;
+        }
+
+        public int getNodeId() {
+            return nodeId;
+        }
     }
 }
