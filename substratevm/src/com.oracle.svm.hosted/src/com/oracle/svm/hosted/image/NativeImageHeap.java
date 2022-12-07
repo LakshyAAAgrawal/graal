@@ -696,14 +696,6 @@ public final class NativeImageHeap implements ImageHeap {
         }
     }
 
-    public boolean isInInternedStrings(String value) {
-        return internedStrings.containsKey(value);
-    }
-
-    public String[] getInternedStringsTable() {
-        return internedStrings.keySet().toArray(new String[0]);
-    }
-
     static class AddObjectData {
 
         AddObjectData(JavaConstant original, boolean immutableFromParent, Object reason) {
@@ -719,55 +711,7 @@ public final class NativeImageHeap implements ImageHeap {
 
     private final int imageHeapOffsetInAddressSpace = Heap.getHeap().getImageHeapOffsetInAddressSpace();
 
-    // For diagnostic purposes only
-    public enum ObjectGroupRoot {
-        Resources,
-        InternedStringsTable,
-        DynamicHubs,
-        MethodOrHostedField,
-        StaticObjectFields,
-        StaticPrimitiveFields,
-        ImageCodeInfo,
-        Other;
-
-        public static EnumSet<ObjectGroupRoot> getByObjectInfo(ObjectInfo object) {
-            EnumSet<ObjectGroupRoot> result = EnumSet.noneOf(ObjectGroupRoot.class);
-            if (object.getObjectClass().equals(ImageCodeInfo.class)) {
-                result.add(ImageCodeInfo);
-            }
-            if (object.getObject().getClass().equals(DynamicHub.class) || object.getObject().getClass().equals(DynamicHubCompanion.class)) {
-                result.add(DynamicHubs);
-            }
-            for (Object reason : object.getAllReasons()) {
-                result.addAll(ObjectGroupRoot.getByReason(reason));
-            }
-            return result;
-        }
-
-        public static EnumSet<ObjectGroupRoot> getByReason(Object reason) {
-            if (reason instanceof String) {
-                if (reason.toString().equals("internedStrings table")) {
-                    return EnumSet.of(InternedStringsTable);
-                }
-                if (reason.toString().equals("staticObjectFields")) {
-                    return EnumSet.of(StaticObjectFields);
-                }
-                if (reason.toString().equals("staticPrimitiveFields")) {
-                    return EnumSet.of(StaticPrimitiveFields);
-                }
-                return EnumSet.of(MethodOrHostedField);
-            } else if (reason instanceof HostedField) {
-                return EnumSet.of(MethodOrHostedField);
-            } else if (reason instanceof ObjectInfo) {
-                ObjectInfo r = (ObjectInfo) reason;
-                return r.getBelongsToObjectGroup();
-            }
-            return EnumSet.of(Other);
-        }
-    }
-
     public final class ObjectInfo implements ImageHeapObject {
-
         private final JavaConstant constant;
         private final HostedClass clazz;
         private final long size;
@@ -783,7 +727,7 @@ public final class NativeImageHeap implements ImageHeap {
          */
         private final Object firstReason;
         private final Set<Object> allReasons;
-        private final EnumSet<ObjectGroupRoot> objectGroupRootSet;
+        private final EnumSet<ObjectReachability> objectReachabilitySet;
 
         ObjectInfo(Object object, long size, HostedClass clazz, int identityHashCode, Object reason) {
             this(SubstrateObjectConstant.forObject(object), size, clazz, identityHashCode, reason);
@@ -804,29 +748,7 @@ public final class NativeImageHeap implements ImageHeap {
             // For diagnostic purposes only
             this.allReasons.add(reason);
             // For diagnostic purposes only
-            this.objectGroupRootSet = ObjectGroupRoot.getByObjectInfo(this);
-        }
-
-        private EnumSet<ObjectGroupRoot> getBelongsToObjectGroup() {
-            return objectGroupRootSet;
-        }
-        boolean belongsTo(ObjectGroupRoot group) {
-            return objectGroupRootSet.contains(group);
-        }
-        boolean isInternedStringsTable() {
-            return this.firstReason.toString().equals("internedStrings table");
-        }
-        private void addReason(Object reason) {
-            this.allReasons.add(reason);
-            this.objectGroupRootSet.addAll(ObjectGroupRoot.getByReason(reason));
-        }
-
-        public Object getMainReason() {
-            return this.firstReason;
-        }
-
-        Set<Object> getAllReasons() {
-            return allReasons;
+            this.objectReachabilitySet = ObjectReachability.getByObjectInfo(this);
         }
 
         @Override
@@ -912,9 +834,34 @@ public final class NativeImageHeap implements ImageHeap {
             return identityHashCode;
         }
 
+        private EnumSet<ObjectReachability> getBelongsToObjectGroup() {
+            return objectReachabilitySet;
+        }
+
+        boolean belongsTo(ObjectReachability group) {
+            return objectReachabilitySet.contains(group);
+        }
+
+        boolean isInternedStringsTable() {
+            return this.firstReason.toString().equals("internedStrings table");
+        }
+
+        private void addReason(Object reason) {
+            this.allReasons.add(reason);
+            this.objectReachabilitySet.addAll(ObjectReachability.getByReason(reason));
+        }
+
+        public Object getMainReason() {
+            return this.firstReason;
+        }
+
+        Set<Object> getAllReasons() {
+            return allReasons;
+        }
+
         @Override
         public String toString() {
-            StringBuilder result = new StringBuilder(getObject().getClass().getName()).append(" -> ");
+            StringBuilder result = new StringBuilder(getObject().getClass().getName()).append(":").append(identityHashCode).append(" -> ");
             Object cur = getMainReason();
             Object prev = null;
             boolean skipped = false;
@@ -933,6 +880,7 @@ public final class NativeImageHeap implements ImageHeap {
             }
             return result.toString();
         }
+
     }
 
     protected static final class Phase {
@@ -973,6 +921,51 @@ public final class NativeImageHeap implements ImageHeap {
             BEFORE,
             ALLOWED,
             AFTER
+        }
+    }
+
+    // For diagnostic purposes only
+    public enum ObjectReachability {
+        Resources,
+        InternedStringsTable,
+        DynamicHubs,
+        ImageCodeInfo,
+        MethodOrStaticField,
+        Other;
+
+        public static EnumSet<ObjectReachability> getByObjectInfo(ObjectInfo object) {
+            EnumSet<ObjectReachability> result = EnumSet.noneOf(ObjectReachability.class);
+            if (object.getObjectClass().equals(ImageCodeInfo.class)) {
+                result.add(ImageCodeInfo);
+            }
+            if (object.getObject().getClass().equals(DynamicHub.class) || object.getObject().getClass().equals(DynamicHubCompanion.class)) {
+                result.add(DynamicHubs);
+            }
+            for (Object reason : object.getAllReasons()) {
+                result.addAll(ObjectReachability.getByReason(reason));
+            }
+            return result;
+        }
+
+        public static EnumSet<ObjectReachability> getByReason(Object reason) {
+            if (reason instanceof String) {
+                if (reason.toString().equals("internedStrings table")) {
+                    return EnumSet.of(InternedStringsTable);
+                }
+//                if (reason.toString().equals("staticObjectFields")) {
+//                    return EnumSet.of(StaticObjectFields);
+//                }
+//                if (reason.toString().equals("staticPrimitiveFields")) {
+//                    return EnumSet.of(StaticPrimitiveFields);
+//                }
+                return EnumSet.of(MethodOrStaticField);
+            } else if (reason instanceof HostedField) {
+                return EnumSet.of(MethodOrStaticField);
+            } else if (reason instanceof ObjectInfo) {
+                ObjectInfo r = (ObjectInfo) reason;
+                return r.getBelongsToObjectGroup();
+            }
+            return EnumSet.of(Other);
         }
     }
 }
