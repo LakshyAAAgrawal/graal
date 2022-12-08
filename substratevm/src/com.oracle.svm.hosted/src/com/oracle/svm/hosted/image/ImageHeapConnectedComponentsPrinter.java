@@ -1,3 +1,27 @@
+/*
+ * Copyright (c) 2022, 2022, Oracle and/or its affiliates. All rights reserved.
+ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+ *
+ * This code is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 only, as
+ * published by the Free Software Foundation.  Oracle designates this
+ * particular file as subject to the "Classpath" exception as provided
+ * by Oracle in the LICENSE file that accompanied this code.
+ *
+ * This code is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+ * version 2 for more details (a copy is included in the LICENSE file that
+ * accompanied this code).
+ *
+ * You should have received a copy of the GNU General Public License version
+ * 2 along with this work; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
+ *
+ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
+ * or visit www.oracle.com if you need additional information or have any
+ * questions.
+ */
 package com.oracle.svm.hosted.image;
 
 import java.io.PrintWriter;
@@ -11,7 +35,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.Stack;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 
@@ -38,10 +61,10 @@ public class ImageHeapConnectedComponentsPrinter {
     private final EnumMap<NativeImageHeap.ObjectReachability, GroupEntry> groups;
 
     private static class GroupEntry {
-        public final Set<ObjectInfo> objects;
-        public final long sizeInBytes;
+        final Set<ObjectInfo> objects;
+        final long sizeInBytes;
 
-        public GroupEntry(Set<ObjectInfo> objects) {
+        GroupEntry(Set<ObjectInfo> objects) {
             this.objects = objects;
             this.sizeInBytes = computeTotalSize(objects);
         }
@@ -289,8 +312,9 @@ public class ImageHeapConnectedComponentsPrinter {
         for (ObjectInfo object : objects) {
             for (Object reason : object.getAllReasons()) {
                 if (reason instanceof String) {
-                    if (reason.equals("dataSection") || reason.equals("staticObjectFields") || reason.equals("staticPrimitiveFields"))
+                    if (reason.equals("dataSection") || reason.equals("staticObjectFields") || reason.equals("staticPrimitiveFields")) {
                         continue;
+                    }
                     methods.add((String) reason);
                 }
             }
@@ -362,23 +386,28 @@ public class ImageHeapConnectedComponentsPrinter {
         private final Graph<ObjectInfo> graph;
         private final List<List<ObjectInfo>> connectedComponents = new ArrayList<>();
         private final boolean[] visited;
-        private int componentId = 0;
+        private int componentNum = 0;
 
-        public ConnectedComponentsCollector(Graph<ObjectInfo> graph) {
+        ConnectedComponentsCollector(Graph<ObjectInfo> graph) {
             this.visited = new boolean[graph.getNumberOfNodes()];
             this.graph = graph;
+        }
+
+        @Override
+        public void onStart() {
+            connectedComponents.add(new ArrayList<>());
         }
 
         @Override
         public void accept(Graph.VisitorState<ObjectInfo> state) {
             int nodeId = graph.getNodeId(state.currentNode);
             this.visited[nodeId] = true;
-            connectedComponents.get(componentId).add(state.currentNode);
+            connectedComponents.get(componentNum).add(state.currentNode);
         }
 
         @Override
         public void onEnd() {
-            ++componentId;
+            ++componentNum;
         }
 
         @Override
@@ -399,11 +428,11 @@ public class ImageHeapConnectedComponentsPrinter {
         }
     }
 
-    private final static class ConnectedComponent {
+    private static final class ConnectedComponent {
         private final List<ObjectInfo> objects;
         private final long size;
 
-        public ConnectedComponent(List<ObjectInfo> objects) {
+        ConnectedComponent(List<ObjectInfo> objects) {
             this.objects = objects;
             this.size = computeComponentSize(objects);
         }
@@ -438,8 +467,9 @@ class Graph<Node> {
     }
 
     private void doConnect(Node from, Node to) {
-        if (from == null || to == null)
+        if (from == null || to == null) {
             throw VMError.shouldNotReachHere("Trying to connect null");
+        }
         NodeData fromNodeData = addNode(from);
         addNode(to);
         fromNodeData.getNeighbours().add(to);
@@ -483,11 +513,11 @@ class Graph<Node> {
 
     <T extends NodeVisitor<Node>> T dfs(Node start, T nodeVisitor) {
         nodeVisitor.onStart();
-        Stack<VisitorState<Node>> stack = new Stack<>();
+        ArrayList<VisitorState<Node>> stack = new ArrayList<>();
         boolean[] visited = new boolean[getNumberOfNodes()];
         stack.add(new VisitorState<>(null, start, 0));
         while (!stack.isEmpty()) {
-            VisitorState<Node> state = stack.pop();
+            VisitorState<Node> state = stack.remove(stack.size() - 1);
             int currentNodeId = getNodeId(state.currentNode);
             if (visited[currentNodeId]) {
                 continue;
@@ -502,7 +532,7 @@ class Graph<Node> {
             }
             for (Node neighbour : getNeighbours(state.currentNode)) {
                 if (!visited[getNodeId(neighbour)]) {
-                    stack.push(new VisitorState<>(state.currentNode, neighbour, state.level + 1));
+                    stack.add(new VisitorState<>(state.currentNode, neighbour, state.level + 1));
                 }
             }
         }
@@ -529,10 +559,10 @@ class Graph<Node> {
         }
     }
 
-    final static class VisitorState<Node> {
-        public final Node parentNode;
-        public final Node currentNode;
-        public final int level;
+    static final class VisitorState<Node> {
+        final Node parentNode;
+        final Node currentNode;
+        final int level;
 
         VisitorState(Node parent, Node current, int level) {
             this.parentNode = parent;
@@ -541,20 +571,20 @@ class Graph<Node> {
         }
     }
 
-    private class NodeData {
+    private final class NodeData {
         private final Set<Node> neighbours;
         private final int nodeId;
 
-        public NodeData(int nodeId) {
+        private NodeData(int nodeId) {
             this.neighbours = hashSetInstance();
             this.nodeId = nodeId;
         }
 
-        public Set<Node> getNeighbours() {
+        private Set<Node> getNeighbours() {
             return neighbours;
         }
 
-        public int getNodeId() {
+        private int getNodeId() {
             return nodeId;
         }
     }
