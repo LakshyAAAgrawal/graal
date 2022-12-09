@@ -86,7 +86,8 @@ final class DefaultDoubleExports {
         return false;
     }
 
-    @ExportMessage // TODO TruffleBoundary?
+    @ExportMessage
+    @TruffleBoundary
     static boolean fitsInBigInteger(Double receiver) {
         try {
             asBigInteger(receiver);
@@ -145,7 +146,8 @@ final class DefaultDoubleExports {
         throw UnsupportedMessageException.create();
     }
 
-    @ExportMessage // TODO TruffleBoundary?
+    @ExportMessage
+    @TruffleBoundary
     static BigInteger asBigInteger(Double receiver) throws UnsupportedMessageException {
         try {
             if (Double.isFinite(receiver)) {

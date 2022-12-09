@@ -410,17 +410,20 @@ public abstract class InteropLibrary extends Library {
      * @see #fitsInShort(Object)
      * @see #fitsInInt(Object)
      * @see #fitsInLong(Object)
+     * @see #fitsInBigInteger(Object)
      * @see #fitsInFloat(Object)
      * @see #fitsInDouble(Object)
      * @see #asByte(Object)
      * @see #asShort(Object)
      * @see #asInt(Object)
      * @see #asLong(Object)
+     * @see #asBigInteger(Object)
      * @see #asFloat(Object)
      * @see #asDouble(Object)
      * @since 19.0
      */
-    @Abstract(ifExported = {"fitsInByte", "fitsInShort", "fitsInInt", "fitsInLong", "fitsInFloat", "fitsInDouble", "asByte", "asShort", "asInt", "asLong", "asFloat", "asDouble"})
+    @Abstract(ifExported = {"fitsInByte", "fitsInShort", "fitsInInt", "fitsInLong", "fitsInBigInteger", "fitsInFloat", "fitsInDouble", "asByte", "asShort", "asInt", "asLong", "asBigInteger",
+                    "asFloat", "asDouble"})
     public boolean isNumber(Object receiver) {
         return false;
     }
@@ -481,7 +484,7 @@ public abstract class InteropLibrary extends Library {
         return false;
     }
 
-    @Abstract(ifExported = "asBigInteger")
+    @Abstract(ifExportedAsWarning = "isNumber")
     public boolean fitsInBigInteger(Object receiver) {
         return fitsInLong(receiver);
     }
@@ -574,9 +577,8 @@ public abstract class InteropLibrary extends Library {
         throw UnsupportedMessageException.create();
     }
 
-    // @Abstract(ifExported = "isNumber") // TODO We probably can't do this, it would break stuff,
-    // TruffleBoundary?
-    @Abstract(ifExported = "fitsInBigInteger")
+    @Abstract(ifExportedAsWarning = "isNumber")
+    @TruffleBoundary
     public BigInteger asBigInteger(Object receiver) throws UnsupportedMessageException {
         return BigInteger.valueOf(asLong(receiver));
     }
@@ -2909,7 +2911,6 @@ public abstract class InteropLibrary extends Library {
                         || receiver instanceof Character //
                         || receiver instanceof Integer //
                         || receiver instanceof Long //
-                        || receiver instanceof BigInteger //
                         || receiver instanceof Float //
                         || receiver instanceof Double //
                         || receiver instanceof String //

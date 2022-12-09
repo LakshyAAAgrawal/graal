@@ -314,6 +314,10 @@ public class ValueAPITest {
             expectedTraits.add(MEMBERS);
             expectedTraits.add(HOST_OBJECT);
 
+            if (value instanceof BigInteger) {
+                expectedTraits.add(NUMBER);
+            }
+
             if (value instanceof Supplier || value instanceof Function) {
                 expectedTraits.add(EXECUTABLE);
             }

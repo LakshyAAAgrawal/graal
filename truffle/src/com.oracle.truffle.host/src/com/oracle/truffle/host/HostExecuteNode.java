@@ -43,6 +43,7 @@ package com.oracle.truffle.host;
 import java.lang.reflect.Array;
 import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.Type;
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -792,6 +793,9 @@ abstract class HostExecuteNode extends Node {
             return true;
         } else if (toAsPrimitive == null && fromAsPrimitive != null && toType.isAssignableFrom(primitiveTypeToBoxedType(fromAsPrimitive))) {
             // primitive|boxed <: Number et al
+            return true;
+        } else if (toAsPrimitive == null && fromAsPrimitive != null && toType == BigInteger.class && Number.class.isAssignableFrom(primitiveTypeToBoxedType(fromAsPrimitive))) {
+            // primitive|boxed <: BigInteger
             return true;
         }
         return false;

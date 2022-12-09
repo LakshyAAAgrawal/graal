@@ -40,6 +40,8 @@
  */
 package com.oracle.truffle.sl.test;
 
+import java.math.BigInteger;
+
 import org.graalvm.polyglot.Context;
 import org.graalvm.polyglot.Source;
 import org.graalvm.polyglot.Value;
@@ -75,5 +77,17 @@ public class SLInteropPrimitiveTest {
         final Value fnc = context.eval(src);
         Assert.assertTrue(fnc.canExecute());
         fnc.execute('a', 'b');
+    }
+
+    @Test
+    public void testNumbers() {
+        final Source src = Source.newBuilder("sl", "function addNum(a,b) {return a + b;} function main() {return addNum;}", "addNum.sl").buildLiteral();
+        final Value fnc = context.eval(src);
+        Assert.assertTrue(fnc.canExecute());
+        System.out.println(fnc.execute(20, 22));
+        System.out.println(fnc.execute(Long.MAX_VALUE, Long.MAX_VALUE));
+        System.out.println(fnc.execute(BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.ONE), Long.MAX_VALUE));
+        System.out.println(fnc.execute(BigInteger.valueOf(Long.MAX_VALUE), BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.ONE)));
+        System.out.println(fnc.execute(BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.ONE), BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.ONE)));
     }
 }

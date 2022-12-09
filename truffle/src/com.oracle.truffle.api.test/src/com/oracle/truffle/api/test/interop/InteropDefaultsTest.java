@@ -349,7 +349,9 @@ public class InteropDefaultsTest extends InteropLibraryBaseTest {
         assertNoDuration(v);
         assertNoSourceLocation(v);
         assertNoLanguage(v);
-        assertNoIdentity(v);
+        if (!(v instanceof BigInteger)) {
+            assertNoIdentity(v);
+        }
     }
 
     @Test

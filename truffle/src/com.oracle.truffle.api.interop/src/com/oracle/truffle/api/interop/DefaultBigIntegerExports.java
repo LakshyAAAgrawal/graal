@@ -53,27 +53,32 @@ import com.oracle.truffle.api.source.SourceSection;
 @SuppressWarnings("unused")
 public class DefaultBigIntegerExports {
 
-    @ExportMessage // TODO TruffleBoundary?
+    @ExportMessage
+    @TruffleBoundary
     static boolean fitsInByte(BigInteger receiver) {
         return receiver.bitLength() < Byte.SIZE;
     }
 
-    @ExportMessage // TODO TruffleBoundary?
+    @ExportMessage
+    @TruffleBoundary
     static boolean fitsInShort(BigInteger receiver) {
         return receiver.bitLength() < Short.SIZE;
     }
 
-    @ExportMessage // TODO TruffleBoundary?
+    @ExportMessage
+    @TruffleBoundary
     static boolean fitsInInt(BigInteger receiver) {
         return receiver.bitLength() < Integer.SIZE;
     }
 
-    @ExportMessage // TODO TruffleBoundary?
+    @ExportMessage
+    @TruffleBoundary
     static boolean fitsInLong(BigInteger receiver) {
         return receiver.bitLength() < Long.SIZE;
     }
 
-    @ExportMessage // TODO TruffleBoundary?
+    @ExportMessage
+    @TruffleBoundary
     static boolean fitsInFloat(BigInteger receiver) {
         if (receiver.bitLength() <= 24) { // 24 = size of float mantissa + 1
             return true;
@@ -86,7 +91,8 @@ public class DefaultBigIntegerExports {
         }
     }
 
-    @ExportMessage // TODO TruffleBoundary?
+    @ExportMessage
+    @TruffleBoundary
     static boolean fitsInDouble(BigInteger receiver) {
         if (receiver.bitLength() <= 53) { // 53 = size of double mantissa + 1
             return true;
@@ -99,7 +105,8 @@ public class DefaultBigIntegerExports {
         }
     }
 
-    @ExportMessage // TODO TruffleBoundary?
+    @ExportMessage
+    @TruffleBoundary
     static byte asByte(BigInteger receiver) throws UnsupportedMessageException {
         try {
             return receiver.byteValueExact();
@@ -108,7 +115,8 @@ public class DefaultBigIntegerExports {
         }
     }
 
-    @ExportMessage // TODO TruffleBoundary?
+    @ExportMessage
+    @TruffleBoundary
     static short asShort(BigInteger receiver) throws UnsupportedMessageException {
         try {
             return receiver.shortValueExact();
@@ -117,7 +125,8 @@ public class DefaultBigIntegerExports {
         }
     }
 
-    @ExportMessage // TODO TruffleBoundary?
+    @ExportMessage
+    @TruffleBoundary
     static int asInt(BigInteger receiver) throws UnsupportedMessageException {
         try {
             return receiver.intValueExact();
@@ -126,7 +135,8 @@ public class DefaultBigIntegerExports {
         }
     }
 
-    @ExportMessage // TODO TruffleBoundary?
+    @ExportMessage
+    @TruffleBoundary
     static long asLong(BigInteger receiver) throws UnsupportedMessageException {
         try {
             return receiver.longValueExact();
@@ -135,7 +145,8 @@ public class DefaultBigIntegerExports {
         }
     }
 
-    @ExportMessage // TODO TruffleBoundary?
+    @ExportMessage
+    @TruffleBoundary
     static float asFloat(BigInteger receiver) throws UnsupportedMessageException {
         if (fitsInFloat(receiver)) {
             return receiver.floatValue();
@@ -144,7 +155,8 @@ public class DefaultBigIntegerExports {
         }
     }
 
-    @ExportMessage // TODO TruffleBoundary?
+    @ExportMessage
+    @TruffleBoundary
     static double asDouble(BigInteger receiver) throws UnsupportedMessageException {
         if (fitsInDouble(receiver)) {
             return receiver.doubleValue();
@@ -158,12 +170,13 @@ public class DefaultBigIntegerExports {
         return true;
     }
 
-    @ExportMessage // TODO TruffleBoundary?
+    @ExportMessage
     static boolean fitsInBigInteger(BigInteger receiver) {
         return true;
     }
 
-    @ExportMessage // TODO TruffleBoundary?, Don't copy the receiver
+    @ExportMessage
+    @TruffleBoundary
     static BigInteger asBigInteger(BigInteger receiver) {
         return new BigInteger(receiver.toByteArray());
     }

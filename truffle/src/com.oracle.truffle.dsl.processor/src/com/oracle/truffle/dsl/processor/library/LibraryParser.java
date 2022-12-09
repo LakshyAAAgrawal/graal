@@ -202,15 +202,22 @@ public class LibraryParser extends AbstractParser<LibraryData> {
             AnnotationMirror abstractMirror = ElementUtils.findAnnotationMirror(message.getExecutable(), types.GenerateLibrary_Abstract);
             if (abstractMirror != null) {
                 message.setAbstract(true);
-                AnnotationValue value = ElementUtils.getAnnotationValue(abstractMirror, "ifExported");
-                for (String ifExported : ElementUtils.getAnnotationValueList(String.class, abstractMirror, "ifExported")) {
-                    LibraryMessage ifExportedMessage = messages.get(ifExported);
-                    if (ifExportedMessage == message) {
-                        message.addError(abstractMirror, value, "The ifExported condition links to itself. Remove that condition to resolve this problem.");
-                    } else if (ifExportedMessage == null) {
-                        message.addError(abstractMirror, value, "The ifExported condition links to an unknown message '%s'. Only valid library messages may be linked.", ifExported);
-                    } else {
-                        message.getAbstractIfExported().add(ifExportedMessage);
+                for (String ifExportedType : new String[]{"ifExported", "ifExportedAsWarning"}) {
+                    AnnotationValue value = ElementUtils.getAnnotationValue(abstractMirror, ifExportedType);
+                    List<String> valueList = ElementUtils.getAnnotationValueList(String.class, abstractMirror, ifExportedType);
+                    for (String ifExported : valueList) {
+                        LibraryMessage ifExportedMessage = messages.get(ifExported);
+                        if (ifExportedMessage == message) {
+                            message.addError(abstractMirror, value, "The %s condition links to itself. Remove that condition to resolve this problem.", ifExportedType);
+                        } else if (ifExportedMessage == null) {
+                            message.addError(abstractMirror, value, "The %s condition links to an unknown message '%s'. Only valid library messages may be linked.", ifExportedType, ifExported);
+                        } else {
+                            if (ifExportedType.endsWith("Warning")) {
+                                message.getAbstractIfExportedAsWarning().add(ifExportedMessage);
+                            } else {
+                                message.getAbstractIfExported().add(ifExportedMessage);
+                            }
+                        }
                     }
                 }
             }

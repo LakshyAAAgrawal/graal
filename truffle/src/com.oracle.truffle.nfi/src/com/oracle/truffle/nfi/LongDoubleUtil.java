@@ -40,6 +40,7 @@
  */
 package com.oracle.truffle.nfi;
 
+import java.math.BigInteger;
 import java.nio.ByteOrder;
 
 import com.oracle.truffle.api.CompilerDirectives;
@@ -239,6 +240,16 @@ final class LongDoubleUtil {
         }
 
         @ExportMessage
+        boolean fitsInBigInteger(@CachedLibrary("this.buffer") InteropLibrary interop) {
+            try {
+                asBigInteger(interop);
+                return true;
+            } catch (UnsupportedMessageException ex) {
+                return false;
+            }
+        }
+
+        @ExportMessage
         boolean fitsInFloat(@CachedLibrary("this.buffer") InteropLibrary interop) {
             if (fitsInDouble()) {
                 try {
@@ -301,6 +312,9 @@ final class LongDoubleUtil {
 
                 int unbiasedExponent = (exponent & FP80Number.EXPONENT_MASK) - FP80Number.EXPONENT_BIAS;
                 long fraction = interop.readBufferLong(buffer, ByteOrder.LITTLE_ENDIAN, 0);
+                // TODO looks like this does not use direct application of the IEEE 754, the "1" in
+                // the fraction is not unconditional, but represented by the most significant bit of
+                // the fraction
                 int shift = FP80Number.FRACTION_BITS - unbiasedExponent - 1;
                 long ret = fraction >>> shift;
                 if (ret < 0 || fraction != (ret << shift)) {
@@ -316,6 +330,81 @@ final class LongDoubleUtil {
             } catch (InvalidBufferOffsetException ex) {
                 throw UnsupportedMessageException.create();
             }
+        }
+
+        @ExportMessage
+        BigInteger asBigInteger(@CachedLibrary("this.buffer") InteropLibrary interop) throws UnsupportedMessageException {
+            try {
+                short exponent = interop.readBufferShort(buffer, ByteOrder.LITTLE_ENDIAN, 8);
+                if ((exponent & FP80Number.EXPONENT_MASK) == FP80Number.EXPONENT_MASK) {
+                    // NaN or infinity
+                    throw UnsupportedMessageException.create();
+                }
+
+                int unbiasedExponent = (exponent & FP80Number.EXPONENT_MASK) - FP80Number.EXPONENT_BIAS;
+                /*
+                 * The first byte of the array is not assigned, and so it is 0. It is a trick to
+                 * assign to the BigInteger the unsigned value of the long occupying the first 8
+                 * bytes of the buffer. The BigInteger constructor accepts the bytes in 2's
+                 * complement code in big-endian order. The buffer is little-endian, hence we assign
+                 * the bytes in reversed order.
+                 */
+                byte[] b = new byte[9];
+                for (int i = 0; i < 8; i++) {
+                    b[8 - i] = interop.readBufferByte(buffer, i);
+                }
+                BigInteger fraction = newBigInteger(b);
+                int shift = FP80Number.FRACTION_BITS - unbiasedExponent - 1;
+                BigInteger ret;
+                if (shift >= 0) {
+                    ret = bigIntegerShiftRight(fraction, shift);
+                    BigInteger fractionBack = bigIntegerShiftLeft(ret, shift);
+                    if (!bigIntegerEquals(fraction, fractionBack)) {
+                        // not a whole number
+                        throw UnsupportedMessageException.create();
+                    }
+                } else {
+                    ret = bigIntegerShiftLeft(fraction, -shift);
+                }
+
+                if ((exponent & FP80Number.SIGN_MASK) == 0) {
+                    return ret;
+                } else {
+                    return bigIntegerNegate(ret);
+                }
+            } catch (InvalidBufferOffsetException ex) {
+                throw UnsupportedMessageException.create();
+            }
+        }
+
+        @TruffleBoundary
+        private static BigInteger bigIntegerNegate(BigInteger b) {
+            return b.negate();
+        }
+
+        @TruffleBoundary
+        private static boolean bigIntegerEquals(BigInteger b1, BigInteger b2) {
+            return b1.equals(b2);
+        }
+
+        @TruffleBoundary
+        private static BigInteger bigIntegerShiftLeft(BigInteger b, int shift) {
+            return b.shiftLeft(shift);
+        }
+
+        @TruffleBoundary
+        private static BigInteger bigIntegerShiftRight(BigInteger b, int shift) {
+            return b.shiftRight(shift);
+        }
+
+        @TruffleBoundary
+        private static BigInteger newBigInteger(long l) {
+            return BigInteger.valueOf(l);
+        }
+
+        @TruffleBoundary
+        private static BigInteger newBigInteger(byte[] b) {
+            return new BigInteger(b);
         }
 
         @ExportMessage

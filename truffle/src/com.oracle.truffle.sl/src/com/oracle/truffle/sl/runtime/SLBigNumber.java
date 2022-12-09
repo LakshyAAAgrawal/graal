@@ -40,6 +40,7 @@
  */
 package com.oracle.truffle.sl.runtime;
 
+import java.math.BigDecimal;
 import java.math.BigInteger;
 
 import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
@@ -54,17 +55,6 @@ import com.oracle.truffle.sl.SLLanguage;
 @ExportLibrary(InteropLibrary.class)
 @SuppressWarnings("static-method")
 public final class SLBigNumber implements TruffleObject, Comparable<SLBigNumber> {
-
-    private static final long LONG_MAX_SAFE_DOUBLE = 9007199254740991L; // 2 ** 53 - 1
-    private static final int INT_MAX_SAFE_FLOAT = 16777215; // 2 ** 24 - 1
-
-    private static boolean inSafeDoubleRange(long l) {
-        return l >= -LONG_MAX_SAFE_DOUBLE && l <= LONG_MAX_SAFE_DOUBLE;
-    }
-
-    private static boolean inSafeFloatRange(int i) {
-        return i >= -INT_MAX_SAFE_FLOAT && i <= INT_MAX_SAFE_FLOAT;
-    }
 
     private final BigInteger value;
 
@@ -108,7 +98,7 @@ public final class SLBigNumber implements TruffleObject, Comparable<SLBigNumber>
     @SuppressWarnings("static-method")
     @ExportMessage
     boolean isNumber() {
-        return fitsInLong();
+        return true;
     }
 
     @ExportMessage
@@ -126,7 +116,15 @@ public final class SLBigNumber implements TruffleObject, Comparable<SLBigNumber>
     @ExportMessage
     @TruffleBoundary
     boolean fitsInFloat() {
-        return fitsInInt() && inSafeFloatRange(value.intValue());
+        if (value.bitLength() <= 24) { // 24 = size of float mantissa + 1
+            return true;
+        } else {
+            float floatValue = value.floatValue();
+            if (!Float.isFinite(floatValue)) {
+                return false;
+            }
+            return new BigDecimal(floatValue).toBigIntegerExact().equals(value);
+        }
     }
 
     @ExportMessage
@@ -144,7 +142,20 @@ public final class SLBigNumber implements TruffleObject, Comparable<SLBigNumber>
     @ExportMessage
     @TruffleBoundary
     boolean fitsInDouble() {
-        return fitsInLong() && inSafeDoubleRange(value.longValue());
+        if (value.bitLength() <= 53) { // 53 = size of double mantissa + 1
+            return true;
+        } else {
+            double doubleValue = value.doubleValue();
+            if (!Double.isFinite(doubleValue)) {
+                return false;
+            }
+            return new BigDecimal(doubleValue).toBigIntegerExact().equals(value);
+        }
+    }
+
+    @ExportMessage
+    public boolean fitsInBigInteger() {
+        return true;
     }
 
     @ExportMessage
@@ -205,6 +216,12 @@ public final class SLBigNumber implements TruffleObject, Comparable<SLBigNumber>
         } else {
             throw UnsupportedMessageException.create();
         }
+    }
+
+    @ExportMessage
+    @TruffleBoundary
+    BigInteger asBigInteger() {
+        return new BigInteger(value.toByteArray());
     }
 
     @ExportMessage

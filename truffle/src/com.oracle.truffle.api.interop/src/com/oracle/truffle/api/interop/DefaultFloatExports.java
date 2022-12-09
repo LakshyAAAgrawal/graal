@@ -99,7 +99,8 @@ final class DefaultFloatExports {
         return false;
     }
 
-    @ExportMessage // TODO TruffleBoundary?
+    @ExportMessage
+    @TruffleBoundary
     static boolean fitsInBigInteger(Float receiver) {
         try {
             asBigInteger(receiver);
@@ -154,7 +155,8 @@ final class DefaultFloatExports {
         throw UnsupportedMessageException.create();
     }
 
-    @ExportMessage // TODO TruffleBoundary?
+    @ExportMessage
+    @TruffleBoundary
     static BigInteger asBigInteger(Float receiver) throws UnsupportedMessageException {
         try {
             if (Float.isFinite(receiver)) {

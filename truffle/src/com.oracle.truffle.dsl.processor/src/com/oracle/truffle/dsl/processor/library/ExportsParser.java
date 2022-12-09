@@ -378,6 +378,7 @@ public class ExportsParser extends AbstractParser<ExportsData> {
             }
 
             Set<LibraryMessage> missingAbstractMessage = new LinkedHashSet<>();
+            Set<LibraryMessage> missingAbstractMessageAsWarning = new LinkedHashSet<>();
             for (LibraryMessage message : exportLib.getLibrary().getMethods()) {
                 List<Element> elementsWithSameName = potentiallyMissedOverrides.getOrDefault(message.getName(), Collections.emptyList());
                 if (!elementsWithSameName.isEmpty()) {
@@ -405,9 +406,21 @@ public class ExportsParser extends AbstractParser<ExportsData> {
                                     break;
                                 }
                             }
-                        } else {
+                        } else if (message.getAbstractIfExportedAsWarning().isEmpty()) {
                             isAbstract = !exportLib.hasExportDelegation();
+                        } else {
+                            isAbstract = false;
                         }
+
+                        if (!message.getAbstractIfExportedAsWarning().isEmpty()) {
+                            for (LibraryMessage abstractIfExportedAsWarning : message.getAbstractIfExportedAsWarning()) {
+                                if (exportLib.getExportedMessages().containsKey(abstractIfExportedAsWarning.getName())) {
+                                    missingAbstractMessageAsWarning.add(message);
+                                    break;
+                                }
+                            }
+                        }
+
                         if (isAbstract) {
                             missingAbstractMessage.add(message);
                         }
@@ -427,6 +440,20 @@ public class ExportsParser extends AbstractParser<ExportsData> {
                     msg.append(" }%n");
                 }
                 exportLib.addError(msg.toString());
+            }
+            if (!missingAbstractMessageAsWarning.isEmpty()) {
+                StringBuilder msg = new StringBuilder(
+                                String.format("The following message(s) of library %s should be exported using:%n",
+                                                getSimpleName(exportLib.getLibrary().getTemplateType())));
+                for (LibraryMessage message : missingAbstractMessageAsWarning) {
+                    msg.append("  ").append(generateExpectedSignature(type, message, exportLib.getExplicitReceiver())).append(" {");
+                    if (!ElementUtils.isVoid(message.getExecutable().getReturnType())) {
+                        msg.append(" return ").append(ElementUtils.defaultValue(message.getExecutable().getReturnType()));
+                        msg.append(";");
+                    }
+                    msg.append(" }%n");
+                }
+                exportLib.addWarning(msg.toString());
             }
         }
 

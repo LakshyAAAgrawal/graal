@@ -264,6 +264,7 @@ public @interface GenerateLibrary {
          */
         String[] ifExported() default {};
 
+        String[] ifExportedAsWarning() default {};
     }
 
     /**

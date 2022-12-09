@@ -1385,11 +1385,11 @@ final class HostObject implements TruffleObject {
         }
 
         Class<?> c = classProfile.profile(obj).getClass();
-        return c == Byte.class || c == Short.class || c == Integer.class || c == Long.class || c == Float.class || c == Double.class;
+        return c == Byte.class || c == Short.class || c == Integer.class || c == Long.class || c == Float.class || c == Double.class || c == BigInteger.class;
     }
 
     private static boolean isJavaPrimitiveNumber(Object value) {
-        return value instanceof Byte || value instanceof Short || value instanceof Integer || value instanceof Long || value instanceof Float || value instanceof Double;
+        return value instanceof Byte || value instanceof Short || value instanceof Integer || value instanceof Long || value instanceof Float || value instanceof Double || value instanceof BigInteger;
     }
 
     @ExportMessage

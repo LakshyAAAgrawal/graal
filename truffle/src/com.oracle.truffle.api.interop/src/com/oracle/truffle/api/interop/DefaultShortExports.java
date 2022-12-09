@@ -119,7 +119,8 @@ final class DefaultShortExports {
         return receiver;
     }
 
-    @ExportMessage // TODO TruffleBoundary?
+    @ExportMessage
+    @TruffleBoundary
     static BigInteger asBigInteger(Short receiver) {
         return BigInteger.valueOf(receiver);
     }

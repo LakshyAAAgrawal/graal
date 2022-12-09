@@ -112,7 +112,8 @@ final class DefaultByteExports {
         return receiver;
     }
 
-    @ExportMessage // TODO TruffleBoundary?
+    @ExportMessage
+    @TruffleBoundary
     static BigInteger asBigInteger(Byte receiver) {
         return BigInteger.valueOf(receiver);
     }
