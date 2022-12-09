@@ -35,6 +35,7 @@ import org.graalvm.compiler.options.OptionType;
 
 import java.io.File;
 import java.io.PrintWriter;
+import java.nio.file.Path;
 import java.util.function.Consumer;
 
 @AutomaticallyRegisteredFeature
@@ -67,7 +68,8 @@ public class ImageHeapConnectedComponentsFeature implements InternalFeature {
     @Override
     public void afterImageWrite(AfterImageWriteAccess a) {
         FeatureImpl.AfterImageWriteAccessImpl access = (FeatureImpl.AfterImageWriteAccessImpl) a;
-        String imageName = access.getImagePath().getFileName().toString();
+        Path imagePath = access.getImagePath().getFileName();
+        String imageName = imagePath != null ? imagePath.toString() : "native-image";
         ImageHeapConnectedComponentsPrinter printer = new ImageHeapConnectedComponentsPrinter(heap, access.getUniverse().getBigBang(), image, imageName);
         printReport("connected_components_" + imageName, printer::printConnectedComponents);
         printReport("objects_in_components_" + imageName, printer::printObjectsForEachComponent);
