@@ -125,6 +125,9 @@ public final class CEntryPointErrors {
     @Description("Current target does not support the following CPU features that are required by the image.") //
     public static final int CPU_FEATURE_CHECK_FAILED = 23;
 
+    @Description("Image page size does not match the page size at run-time.") //
+    public static final int PAGE_SIZE_CHECK_FAILED = 24;
+
     public static String getDescription(int code) {
         String result = null;
         if (code >= 0 && code < DESCRIPTIONS.length) {

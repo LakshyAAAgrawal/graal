@@ -67,6 +67,7 @@ import com.oracle.svm.core.c.function.CEntryPointSetup;
 import com.oracle.svm.core.jdk.InternalVMMethod;
 import com.oracle.svm.core.jdk.RuntimeSupport;
 import com.oracle.svm.core.log.Log;
+import com.oracle.svm.core.os.VirtualMemoryProvider;
 import com.oracle.svm.core.sampler.ProfilingSampler;
 import com.oracle.svm.core.thread.JavaThreads;
 import com.oracle.svm.core.thread.PlatformThreads;
@@ -218,11 +219,19 @@ public class JavaMainWrapper {
         }
     }
 
+    private static final CGlobalData<CCharPointer> PAGE_SIZE_CHECK_FAIL_MESSAGE = CGlobalDataFactory
+                    .createCString("Image page size does not match the page size at run-time. Use -H:PageSize=[pagesize] to set appropriately.");
+
     @Uninterruptible(reason = "Thread state not setup yet.")
     private static int doRun(int argc, CCharPointerPointer argv) {
         try {
             CPUFeatureAccess cpuFeatureAccess = ImageSingletons.lookup(CPUFeatureAccess.class);
             cpuFeatureAccess.verifyHostSupportsArchitectureEarlyOrExit();
+            if (VirtualMemoryProvider.get().getGranularity().notEqual(SubstrateOptions.getPageSize())) {
+                CEntryPointActions.failFatally(CEntryPointErrors.PAGE_SIZE_CHECK_FAILED, PAGE_SIZE_CHECK_FAIL_MESSAGE.get());
+                return 1;
+            }
+
             // Create the isolate and attach the current C thread as the main Java thread.
             EnterCreateIsolateWithCArgumentsPrologue.enter(argc, argv);
             assert !VMThreads.wasStartedByCurrentIsolate(CurrentIsolate.getCurrentThread()) : "re-attach would cause issues otherwise";

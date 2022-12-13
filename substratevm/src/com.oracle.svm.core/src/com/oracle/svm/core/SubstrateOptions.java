@@ -820,6 +820,7 @@ public class SubstrateOptions {
     @Option(help = "Define PageSize of a machine that runs the image. The default = 0 (== same as host machine page size)")//
     protected static final HostedOptionKey<Integer> PageSize = new HostedOptionKey<>(0);
 
+    @Fold
     public static int getPageSize() {
         int value = PageSize.getValue();
         if (value == 0) {

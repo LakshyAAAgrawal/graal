@@ -94,6 +94,7 @@ import com.oracle.svm.core.jdk.RuntimeSupport;
 import com.oracle.svm.core.log.Log;
 import com.oracle.svm.core.option.RuntimeOptionParser;
 import com.oracle.svm.core.os.MemoryProtectionProvider;
+import com.oracle.svm.core.os.VirtualMemoryProvider;
 import com.oracle.svm.core.snippets.SnippetRuntime;
 import com.oracle.svm.core.snippets.SnippetRuntime.SubstrateForeignCallDescriptor;
 import com.oracle.svm.core.snippets.SubstrateForeignCallTarget;
@@ -204,6 +205,9 @@ public final class CEntryPointSnippets extends SubstrateTemplates implements Sni
         CPUFeatureAccess cpuFeatureAccess = ImageSingletons.lookup(CPUFeatureAccess.class);
         if (cpuFeatureAccess.verifyHostSupportsArchitectureEarly() != 0) {
             return CEntryPointErrors.CPU_FEATURE_CHECK_FAILED;
+        }
+        if (VirtualMemoryProvider.get().getGranularity().notEqual(SubstrateOptions.getPageSize())) {
+            return CEntryPointErrors.PAGE_SIZE_CHECK_FAILED;
         }
         CLongPointer parsedArgs = StackValue.get(IsolateArgumentParser.getStructSize());
         IsolateArgumentParser.parse(parameters, parsedArgs);
